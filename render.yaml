@@ -1,54 +1,18 @@
-# render.yaml
-# Развертывает ТОЛЬКО веб-сервис KlineData48Provider (без Cron-задач).
+# Blueprint for Render Deployment
+# This file tells Render how to build and run the project.
 
 services:
-  # -----------------
-  #  1. Main Web Service (FastAPI)
-  # -----------------
+  # The Python Web Server (FastAPI)
   - type: web
-    name: kline-data-provider
-    runtime: python
-
-    # Используем Poetry (исходя из ваших логов 'poetry run')
-    buildCommand: "poetry install"
-
-    # Команда для запуска Uvicorn
-    # Render предоставляет $PORT, но 10000 — их стандартный внутренний порт
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
-
-    # Установка версии Python
+    name: bizzar-kline-data-fetcher
+    env: python
+    plan: free # Use the free instance type
+    region: frankfurt # Deploy in Europe to avoid geo-blocking
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11 # Из вашего лога: (klinedata48provider-py3.11)
-
-      # --- СЕКРЕТЫ: Установите их в панели управления Render ---
-      # Эти значения ДОЛЖНЫ быть добавлены в UI Render
-      # в разделе 'Environment'
-
-      # Основное 'default' соединение Redis
-      - key: UPSTASH_REDIS_URL
-        sync: false
-      - key: UPSTASH_REDIS_TOKEN
-        sync: false
-
-      # Остальные секреты
+        value: "3.12.0"
       - key: SECRET_TOKEN
-        sync: false
-      - key: COIN_SIFTER_URL
-        sync: false
-      - key: TG_BOT_TOKEN
-        sync: false
-      - key: TG_USER
-        sync: false
-
-    # Проверка работоспособности
-    healthCheck:
-      path: /health
-      initialDelaySeconds: 60 # Даем приложению время на запуск
-
-    # Файлы, которые триггерят новую сборку
-    buildFilter:
-      paths:
-        - pyproject.toml
-        - poetry.lock
-        - "**.py"
+        generateValue: true # Render will automatically generate a secure secret key А
