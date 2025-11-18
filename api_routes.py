@@ -31,7 +31,7 @@ from config import (
 # Создаем объект Router
 router = APIRouter()
 
-# --- КОД ИЗ "ПРОЕКТА А" (ДЛЯ .../direct) ---
+# --- КОД ИЗ "ПРОЕКТА Д" (ДЛЯ .../direct) ---
 class MarketDataRequest(BaseModel):
     timeframes: List[str]
     symbols: Optional[List[str]] = None
@@ -166,38 +166,54 @@ async def generate_target_data(
         logging.error(f"{log_prefix} КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка: {e}")
 
+
+# === ЭНДПОИНТ: ПОЛУЧЕНИЕ КЭША (ВСЕГДА GZIP) ===
 @router.get("/get-cache/{key}")
 async def get_raw_cache(key: str):
-    """Возвращает сырые сжатые GZIP данные из кэша Redis."""
+    """
+    Возвращает ТОЛЬКО GZIP-данные из кэша Redis.
+    Если данные не сжаты (старый кэш) - сжимаем на лету.
+    """
+    
     if key not in ALLOWED_CACHE_KEYS:
-         raise HTTPException(status_code=400, detail=f"Ключ '{key}' не разрешен.")
+        raise HTTPException(status_code=400, detail=f"Ключ '{key}' не разрешен.")
 
     redis_conn = await get_redis_connection()
     if not redis_conn:
         raise HTTPException(status_code=503, detail="Сервис недоступен: Redis не подключен.")
 
-    # 🔍 ДЕБАГ: Логируем перед вызовом
     logging.info(f"[API] Запрос ключа '{key}' из Redis...")
     
     data_bytes = await load_raw_bytes_from_cache(key, redis_conn=redis_conn)
     
-    # 🔍 ДЕБАГ: Логируем результат
-    logging.info(f"[API] Результат для '{key}': {type(data_bytes)}, Длина: {len(data_bytes) if data_bytes else 0}")
-    
-    if data_bytes:
-        logging.info(f"[API] ✅ Отправляю {len(data_bytes)} байт для '{key}'")
-        return Response(
-            content=data_bytes,
-            media_type="application/json",
-            headers={
-                 "Content-Encoding": "gzip",
-                "Content-Type": "application/json; charset=utf-8",
-                "Cache-Control": "no-transform"
-            }
-        )
-    else:
+    if not data_bytes:
         logging.error(f"[API] ❌ Ключ '{key}' не найден или пустой!")
         raise HTTPException(status_code=404, detail=f"Ключ '{key}' пуст.")
+
+    # --- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ---
+    is_gzipped = data_bytes.startswith(b'\x1f\x8b')
+
+    if is_gzipped:
+        # ✅ Данные УЖЕ сжаты - отдаем как есть
+        logging.info(f"[API] ✅ Данные сжаты (GZIP). Отправляю {len(data_bytes)} байт")
+        final_data = data_bytes
+    else:
+        # ⚠️ Старый кэш (НЕ сжат) - сжимаем на лету
+        logging.warning(f"[API] ⚠️ Данные НЕ сжаты! Сжимаю на лету...")
+        final_data = gzip.compress(data_bytes)
+        logging.info(f"[API] ✅ Сжато: {len(data_bytes)} -> {len(final_data)} байт")
+
+    # --- ВСЕГДА отдаем с Content-Encoding: gzip ---
+    return Response(
+        content=final_data,
+        media_type="application/json",
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "Content-Encoding": "gzip",  # ✅ ВСЕГДА GZIP
+            "Cache-Control": "no-transform"
+        }
+    )
+
 
 # === ЭНДПОИНТ: ОБНОВЛЕНИЕ 1H И ПРОВЕРКА АЛЕРТОВ ===
 @router.post("/internal/update-1h-and-check-alerts", status_code=200)

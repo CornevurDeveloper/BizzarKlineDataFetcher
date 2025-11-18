@@ -4,7 +4,7 @@
 services:
   # The Python Web Server (FastAPI)
   - type: web
-    name: bizzar-kline-data-fetcher
+    name: bazzar-kline-data-fetcher
     env: python
     plan: free # Use the free instance type
     region: frankfurt # Deploy in Europe to avoid geo-blocking
