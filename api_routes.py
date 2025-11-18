@@ -4,16 +4,13 @@ import os
 import json
 import gzip 
 import asyncio
-# --- УДАЛЕНО: time, aiohttp, defaultdict ---
-from fastapi import APIRouter, HTTPException, Depends, Security, Response
+from fastapi import APIRouter, HTTPException, Depends, Header, Response
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBearer
 from pydantic import BaseModel 
 from typing import List, Dict, Any, Optional
 
 # --- Импорты Redis ---
 from redis.asyncio import Redis as AsyncRedis
-# ---------------------
 
 # --- Импорты модулей исполнения ---
 from cache_manager import (
@@ -22,27 +19,17 @@ from cache_manager import (
     load_from_cache,
     save_to_cache,
 )
-# --- ИЗМЕНЕНИЕ: Проблемные импорты УДАЛЕНЫ с верхнего уровня ---
-# (Они будут импортированы внутри функций, чтобы избежать Cyclic Import)
-# from data_collector import fetch_market_data
-# from data_collector.aggregation_target import run_target_generation_process as run_target_generation_process_func
 from data_collector.coin_source import get_coins as get_all_symbols
-# from data_collector.direct_fetcher import run_direct_data_collection
-# -----------------------------------------------------------------------
-
 
 # --- Импорты из config ---
 from config import (
     ALLOWED_CACHE_KEYS,
     SECRET_TOKEN,
     ACTIVE_TIMEFRAME_PAIR,
-    # --- УДАЛЕНО: CONCURRENCY_LIMIT ---
 )
-
 
 # Создаем объект Router
 router = APIRouter()
-security = HTTPBearer()
 
 # --- КОД ИЗ "ПРОЕКТА А" (ДЛЯ .../direct) ---
 class MarketDataRequest(BaseModel):
@@ -51,7 +38,6 @@ class MarketDataRequest(BaseModel):
 
 # Глобальный semaphore для защиты /direct
 DIRECT_ENDPOINT_SEMAPHORE = asyncio.Semaphore(1)
-# ----------------------------------------
 
 
 def _get_active_timeframes() -> tuple[str, str]:
@@ -66,32 +52,32 @@ def _get_active_timeframes() -> tuple[str, str]:
         raise HTTPException(status_code=500, detail="Ошибка конфигурации таймфреймов.")
 
 
-async def verify_cron_secret(credentials: HTTPBearer = Security(security)):
-    """Проверяет секретный токен для Cron-Job."""
+async def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+    """
+    Проверяет API Key из кастомного заголовка X-API-Key.
+    """
     if not SECRET_TOKEN:
-        logging.error("[CRON_JOB_API] Запрос отклонен: SECRET_TOKEN не установлен на сервере (503).")
+        logging.error("[API_KEY_AUTH] Запрос отклонен: SECRET_TOKEN не установлен на сервере (503).")
         raise HTTPException(
             status_code=503,
-            detail="Сервис недоступен: Секрет для Cron-Job не настроен."
+            detail="Сервис недоступен: API Key не настроен на сервере."
         )
     
-    if credentials.credentials != SECRET_TOKEN:
-        logging.warning("[CRON_JOB_API] Запрос отклонен: Неверный токен (403).")
+    if x_api_key != SECRET_TOKEN:
+        logging.warning("[API_KEY_AUTH] Запрос отклонен: Неверный API Key (403).")
         raise HTTPException(
             status_code=403,
-            detail="Доступ запрещен: Неверный токен."
+            detail="Доступ запрещен: Неверный API Key."
         )
+    
     return True
 
 
 async def _run_data_collection_task(timeframe: str, log_prefix: str):
     """
     Общая функция для синхронного сбора Klines/OI/FR (для Base-TF).
-    (Блокировка удалена)
     """
-    # --- ИЗМЕНЕНИЕ: "Ленивый" импорт ---
-    from data_collector import fetch_market_data
-    # ---------------------------------
+    from data_collector import fetch_market_data_and_save
     
     redis_conn = await get_redis_connection()
     if not redis_conn:
@@ -103,18 +89,14 @@ async def _run_data_collection_task(timeframe: str, log_prefix: str):
         if not all_coins:
             raise HTTPException(status_code=503, detail="Не удалось получить список монет.")
          
-        # 2. Выполнение задачи 
-        logging.info(f"{log_prefix} Запуск fetch_market_data ({timeframe}, {len(all_coins)} монет)...")
-        # (Вызываем стандартный fetch_market_data, который соберет Klines, OI и FR)
-        klines_data = await fetch_market_data(all_coins, timeframe, prefetched_fr_data=None)
+        # 2. Выполнение задачи (функция САМА сохраняет в Redis)
+        logging.info(f"{log_prefix} Запуск fetch_market_data_and_save ({timeframe}, {len(all_coins)} монет)...")
+        klines_data = await fetch_market_data_and_save(all_coins, timeframe)
         
         if not klines_data or not klines_data.get('data'):
             raise HTTPException(status_code=404, detail=f"Данные {timeframe} не найдены.")
 
-        # 3. Сохранение
-        # (Используем f"cache:{timeframe}", а не key из load_raw_bytes)
-        await save_to_cache(redis_conn, f"cache:{timeframe}", klines_data)
-        
+        # 3. Данные уже сохранены функцией fetch_market_data_and_save
         logging.info(f"{log_prefix} ✅ Задача {timeframe} успешно завершена и сохранена.")
         return {"status": "ok", "message": f"Сбор данных {timeframe} успешно завершен и кэширован."}
 
@@ -128,13 +110,14 @@ async def _run_data_collection_task(timeframe: str, log_prefix: str):
             pass
 
 
-# === НОВЫЙ ЭНДПОИНТ: СБОР БАЗОВОГО ТАЙМФРЕЙМА (4H или 12H) ===
+# === ЭНДПОИНТ: СБОР БАЗОВОГО ТАЙМФРЕЙМА (4H или 12H) ===
 @router.post("/internal/update-base-data", status_code=200)
 async def update_base_data(
-    is_authenticated: bool = Depends(verify_cron_secret)
+    is_authenticated: bool = Depends(verify_api_key)
 ):
     """
     (СИНХРОННЫЙ) Запускает сбор базового TF (4h или 12h) согласно конфигу.
+    Требует заголовок: X-API-Key: YOUR_TOKEN
     """
     base_tf, _ = _get_active_timeframes()
     log_prefix = f"[API_BASE_SYNC:{base_tf.upper()}]"
@@ -142,18 +125,16 @@ async def update_base_data(
     return await _run_data_collection_task(base_tf, log_prefix)
 
 
-# === НОВЫЙ ЭНДПОИНТ: ГЕНЕРАЦИЯ ЦЕЛЕВОГО ТАЙМФРЕЙМА (8H или 1D) ===
+# === ЭНДПОИНТ: ГЕНЕРАЦИЯ ЦЕЛЕВОГО ТАЙМФРЕЙМА (8H или 1D) ===
 @router.post("/internal/generate-target", status_code=200)
 async def generate_target_data(
-    is_authenticated: bool = Depends(verify_cron_secret)
+    is_authenticated: bool = Depends(verify_api_key)
 ):
     """
     (СИНХРОННЫЙ) Запускает агрегацию целевого TF (8h или 1d) согласно конфигу.
-    (Внешняя блокировка удалена)
+    Требует заголовок: X-API-Key: YOUR_TOKEN
     """
-    # --- ИЗМЕНЕНИЕ: "Ленивый" импорт ---
     from data_collector.aggregation_target import run_target_generation_process as run_target_generation_process_func
-    # ---------------------------------
     
     base_tf, target_tf = _get_active_timeframes()
     log_prefix = f"[API_TARGET_SYNC:{target_tf.upper()}]"
@@ -164,7 +145,7 @@ async def generate_target_data(
         if not all_coins:
             raise HTTPException(status_code=503, detail="Не удалось получить список монет.")
         
-        # 3. Агрегация
+        # 2. Агрегация
         logging.info(f"{log_prefix} Запуск генерации {target_tf} из {base_tf}...")
         
         success = await run_target_generation_process_func(
@@ -184,8 +165,6 @@ async def generate_target_data(
     except Exception as e:
         logging.error(f"{log_prefix} КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка: {e}")
-    
-
 
 @router.get("/get-cache/{key}")
 async def get_raw_cache(key: str):
@@ -197,10 +176,16 @@ async def get_raw_cache(key: str):
     if not redis_conn:
         raise HTTPException(status_code=503, detail="Сервис недоступен: Redis не подключен.")
 
-    # (Используем f"cache:{key}", а не key из load_raw_bytes)
-    data_bytes = await load_raw_bytes_from_cache(f"cache:{key}", redis_conn=redis_conn)
+    # 🔍 ДЕБАГ: Логируем перед вызовом
+    logging.info(f"[API] Запрос ключа '{key}' из Redis...")
+    
+    data_bytes = await load_raw_bytes_from_cache(key, redis_conn=redis_conn)
+    
+    # 🔍 ДЕБАГ: Логируем результат
+    logging.info(f"[API] Результат для '{key}': {type(data_bytes)}, Длина: {len(data_bytes) if data_bytes else 0}")
     
     if data_bytes:
+        logging.info(f"[API] ✅ Отправляю {len(data_bytes)} байт для '{key}'")
         return Response(
             content=data_bytes,
             media_type="application/json",
@@ -211,7 +196,75 @@ async def get_raw_cache(key: str):
             }
         )
     else:
+        logging.error(f"[API] ❌ Ключ '{key}' не найден или пустой!")
         raise HTTPException(status_code=404, detail=f"Ключ '{key}' пуст.")
+
+# === ЭНДПОИНТ: ОБНОВЛЕНИЕ 1H И ПРОВЕРКА АЛЕРТОВ ===
+@router.post("/internal/update-1h-and-check-alerts", status_code=200)
+async def update_1h_and_check_alerts(
+    is_authenticated: bool = Depends(verify_api_key)
+):
+    """
+    (СИНХРОННЫЙ) Запускает сбор данных 1h и проверку алертов.
+    Требует заголовок: X-API-Key: YOUR_TOKEN
+    """
+    from data_collector import fetch_market_data_and_save
+    from alert_manager.storage import AlertStorage
+    from alert_manager.checker import run_alert_checks
+    
+    timeframe = "1h"
+    log_prefix = f"[API_1H:{timeframe.upper()}]"
+    
+    redis_conn = await get_redis_connection()
+    if not redis_conn:
+        raise HTTPException(status_code=503, detail="Сервис недоступен: Redis не подключен.")
+
+    try:
+        # 1. Сбор монет
+        logging.info(f"{log_prefix} Запрос списка монет...")
+        all_coins = await get_all_symbols()
+        if not all_coins:
+            raise HTTPException(status_code=503, detail="Не удалось получить список монет.")
+         
+        # 2. Сбор данных 1h (функция САМА сохраняет в Redis)
+        logging.info(f"{log_prefix} Запуск fetch_market_data_and_save ({timeframe}, {len(all_coins)} монет)...")
+        klines_data = await fetch_market_data_and_save(all_coins, timeframe)
+        
+        if not klines_data or not klines_data.get('data'):
+            raise HTTPException(status_code=404, detail=f"Данные {timeframe} не найдены.")
+
+        # 3. Данные уже сохранены функцией fetch_market_data_and_save
+        logging.info(f"{log_prefix} Данные {timeframe} сохранены в кэш.")
+        
+        # 4. Проверка алертов
+        alerts_checked = False
+        try:
+            storage = AlertStorage(redis_conn)
+            logging.info(f"{log_prefix} Запуск проверки алертов...")
+            await run_alert_checks(klines_data, storage)
+            alerts_checked = True
+            logging.info(f"{log_prefix} Проверка алертов завершена.")
+        except ImportError as e:
+            logging.warning(f"{log_prefix} Модуль алертов не найден: {e}")
+        except Exception as e:
+            logging.error(f"{log_prefix} Ошибка при проверке алертов: {e}", exc_info=True)
+            # Не падаем, если алерты сломались — данные уже сохранены
+        
+        logging.info(f"{log_prefix} ✅ Задача {timeframe} + проверка алертов успешно завершена.")
+        return {
+            "status": "ok",
+            "message": f"Сбор данных {timeframe} и проверка алертов завершены.",
+            "alerts_checked": alerts_checked
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"{log_prefix} КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка: {e}")
+    finally:
+        if redis_conn:
+            pass
 
 
 @router.get("/health")
@@ -221,7 +274,7 @@ async def health_check():
     return {"status": "ok"}
 
 
-# === 🚀 ИЗМЕНЕНИЕ: НЕЗАВИСИМЫЙ ЭНДПОИНТ (ЛОГИКА ВЫНЕСЕНА) ===
+# === НЕЗАВИСИМЫЙ ЭНДПОИНТ (БЕЗ АВТОРИЗАЦИИ) ===
 @router.post("/get-market-data/direct")
 async def get_market_data_direct(request: MarketDataRequest):
     """
@@ -229,10 +282,9 @@ async def get_market_data_direct(request: MarketDataRequest):
     Реализует кастомную логику сбора (1/12/1d = K+OI, 4/8h = K+OI+FR).
     ВНИМАНИЕ: Запрос может занимать 60-90+ секунд.
     Защищен от DDoS: максимум 1 одновременный запрос.
+    НЕ ТРЕБУЕТ авторизации (публичный эндпоинт).
     """
-    # --- ИЗМЕНЕНИЕ: "Ленивый" импорт ---
     from data_collector.direct_fetcher import run_direct_data_collection
-    # ---------------------------------
     
     if not request.timeframes:
         raise HTTPException(status_code=400, detail="Необходимо указать timeframe.")
@@ -251,17 +303,10 @@ async def get_market_data_direct(request: MarketDataRequest):
         logging.info(f"{log_prefix} Получен запрос. Семафор захвачен.")
         
         try:
-            # 1. Вызываем новую независимую функцию
-            # Она сама обработает сбор, фильтрацию, парсинг, слияние и GZIP
             return await run_direct_data_collection(timeframe, request.symbols)
 
         except HTTPException as e:
-            # Пробрасываем HTTP ошибки (404, 503, 500) из direct_fetcher
             raise e
-        # --- ИСПРАВЛЕНИЕ: IndentationError ---
-        # (Этот блок сдвинут влево, чтобы соответствовать `try`)
         except Exception as e:
-             # Ловим любые другие (не-HTTP) ошибки
              logging.error(f"{log_prefix} КРИТИЧЕСКАЯ ОШИБКА (API_ROUTES): {e}", exc_info=True)
              raise HTTPException(status_code=500, detail=f"Внутренняя ошибка: {e}")
-# === 🚀 КОНЕЦ ИЗМЕНЕНИЯ ===

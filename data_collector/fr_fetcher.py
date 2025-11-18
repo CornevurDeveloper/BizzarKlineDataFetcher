@@ -16,19 +16,31 @@ from cache_manager import save_to_cache, get_redis_connection
 
 # --- Импорты из пакета data_collector (внутренние) ---
 try:
-    from . import task_builder
-    from .logging_setup import logger
-    
-    # --- ИСПРАВЛЕНИЕ: Используем относительный импорт, так как coin_source находится в этом же пакете ---
-    from .coin_source import get_coins as get_coins_func 
+    # --- ИЗМЕНЕНИЕ: Замена относительных импортов на абсолютные ---
+    from data_collector import task_builder
+    from data_collector.logging_setup import logger
+    from data_collector.coin_source import get_coins as get_coins_func 
     # ----------------------------------------------------
     
 except ImportError:
     # Фоллбэки для standalone запуска
-    import task_builder
-    import logging
-    logger = logging.getLogger(__name__)
-    async def get_coins_func(): return [] # <-- ФОЛЛБЭК
+    # --- ИЗМЕНЕНИЕ: Адаптация фоллбэков ---
+    import sys
+    import os
+    # Добавляем корень проекта в путь для импорта, если fr_fetcher запускается напрямую
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    
+    try:
+        from data_collector import task_builder
+        from data_collector.logging_setup import logger
+        from data_collector.coin_source import get_coins as get_coins_func
+    except ImportError:
+        import task_builder # type: ignore
+        import logging
+        logger = logging.getLogger(__name__)
+        async def get_coins_func(): return [] # <-- ФОЛЛБЭК
+    # -----------------------------------
+    
     async def save_to_cache(redis_conn, key, data): pass
     async def get_redis_connection(): return None
 

@@ -2,7 +2,6 @@
 """
 Этот модуль отвечает за ПАРСИНГ сырых ответов API от бирж
 и приведение их к ЕДИНОМУ внутреннему формату.
-
 Единый формат:
 Klines: [{'openTime': int, 'openPrice': float, 'highPrice': float, 'lowPrice': float, 'closePrice': float, 'volume': float, 'closeTime': int, 'volumeDelta': float (optional)}]
 OI:     [{'openTime': int, 'openInterest': float, 'closeTime': int}]
@@ -47,7 +46,7 @@ def parse_binance_klines(raw_data: List[List[Any]], timeframe: str) -> List[Dict
                 if len(kline) < 10:
                     logger.warning(f"BINANCE_PARSER (klines): Пропущена свеча, неполные данные (меньше 10 полей): {kline}")
                     continue
-                
+                 
                 # --- ИЗМЕНЕНИЕ: Считаем volumeDelta ---
                 try:
                     total_volume = float(kline[5])
@@ -67,7 +66,7 @@ def parse_binance_klines(raw_data: List[List[Any]], timeframe: str) -> List[Dict
                     "closeTime": int(kline[6]),
                     "volumeDelta": volume_delta
                 })
-            # --- КОНЕЦ ИЗМЕНЕНИЙ В ЦИКЛЕ Klines ---
+                # --- КОНЕЦ ИЗМЕНЕНИЙ В ЦИКЛЕ Klines ---
 
         return parsed_klines
     except (ValueError, TypeError, IndexError) as e:
@@ -124,6 +123,7 @@ def parse_binance_fr(raw_data: List[Dict[str, str]], timeframe: str) -> List[Dic
                 "closeTime": open_time + 1
             })
         return parsed_fr
+ 
     except (ValueError, TypeError, KeyError) as e:
         logger.error(f"BINANCE_PARSER (fr): Ошибка парсинга FR: {e}. Raw data (sample): {str(raw_data)[:200]}...", exc_info=True)
         return []
@@ -167,11 +167,18 @@ def parse_bybit_klines(raw_data: List[List[str]], timeframe: str) -> List[Dict[s
         logger.error(f"BYBIT_PARSER (klines): Ошибка парсинга Klines: {e}. Raw data (sample): {str(raw_data)[:200]}...", exc_info=True)
         return []
 
-def parse_bybit_oi(raw_data: List[Dict[str, str]], timeframe: str) -> List[Dict[str, Any]]:
+def parse_bybit_oi(raw_data: Any, timeframe: str) -> List[Dict[str, Any]]:
     """
     Парсит Open Interest (OI) от Bybit V5.
     """
     parsed_oi = []
+    
+    # --- ИСПРАВЛЕНИЕ: Извлечение списка из ответа Bybit V5 ---
+    # Если пришел полный словарь ответа (fetch_simple), достаем result->list
+    if isinstance(raw_data, dict):
+        raw_data = raw_data.get('result', {}).get('list', [])
+    # ---------------------------------------------------------
+        
     try:
         for item in raw_data:
             open_time = int(item["timestamp"])
@@ -185,11 +192,18 @@ def parse_bybit_oi(raw_data: List[Dict[str, str]], timeframe: str) -> List[Dict[
         logger.error(f"BYBIT_PARSER (oi): Ошибка парсинга OI: {e}. Raw data (sample): {str(raw_data)[:200]}...", exc_info=True)
         return []
 
-def parse_bybit_fr(raw_data: List[Dict[str, str]], timeframe: str) -> List[Dict[str, Any]]:
+def parse_bybit_fr(raw_data: Any, timeframe: str) -> List[Dict[str, Any]]:
     """
     Парсит Funding Rate (FR) от Bybit V5.
     """
     parsed_fr = []
+    
+    # --- ИСПРАВЛЕНИЕ: Извлечение списка из ответа Bybit V5 ---
+    # Если пришел полный словарь ответа (fetch_simple), достаем result->list
+    if isinstance(raw_data, dict):
+        raw_data = raw_data.get('result', {}).get('list', [])
+    # ---------------------------------------------------------
+
     try:
         for item in raw_data:
             open_time = int(item["fundingRateTimestamp"])

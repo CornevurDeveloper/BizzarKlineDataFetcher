@@ -67,6 +67,11 @@ def prepare_tasks(coins: List[Dict], timeframe: str) -> List[Dict[str, Any]]:
         symbol = coin.get('symbol') 
         exchanges = coin.get('exchanges', [])
         
+        # --- ИЗМЕНЕНИЕ: Нормализация списка бирж к нижнему регистру ---
+        if exchanges:
+            exchanges = [e.lower() for e in exchanges]
+        # -------------------------------------------------------------
+        
         if not symbol or not exchanges:
             logger.warning(f"{log_prefix} Пропускаю монету без символа или бирж: {coin.get('symbol')}")
             continue 

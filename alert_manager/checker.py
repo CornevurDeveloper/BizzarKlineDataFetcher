@@ -8,10 +8,13 @@ import pytz
 from alert_manager.model import (
     Alert, VwapAlert, KlineData, AlertsCollection,
 )
-from .storage import AlertStorage
+# --- ИЗМЕНЕНИЕ: Замена относительного импорта на абсолютный ---
+from alert_manager.storage import AlertStorage
 
 # Импортируем (асинхронный) модуль отправки
-from . import telegram_sender 
+# --- ИЗМЕНЕНИЕ: Замена относительного импорта на абсолютный ---
+from alert_manager import telegram_sender 
+# ---------------------------------------------------------
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +117,7 @@ def _check_vwap_alerts(
             continue
         kline_low_raw = last_kline.get("lowPrice") # 🚀
         kline_high_raw = last_kline.get("highPrice") # 🚀
+        
         if not kline_low_raw or not kline_high_raw: # 🚀 (Проверка на None или пустую строку)
             continue
         try:

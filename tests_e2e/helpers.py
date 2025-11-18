@@ -14,7 +14,6 @@ try:
         SECRET_TOKEN,
         KLINES_LIMIT_BASE_TF,
         ACTIVE_TIMEFRAME_PAIR,
-        # --- ИСПРАВЛЕНИЕ (Шаг 3 из 3): Импортируем TIMEFRAMES_TO_TRIM ---
         TIMEFRAMES_TO_TRIM 
     )
 except ImportError as e:
@@ -71,7 +70,6 @@ def setup_colored_logger() -> logging.Logger:
     return log
 
 
-# --- ИСПРАВЛЕНИЕ: Функция переименована обратно ---
 def _get_active_timeframes() -> tuple[str, str]:
     """
     Парсит ACTIVE_TIMEFRAME_PAIR из конфига.
@@ -90,10 +88,8 @@ def _get_active_timeframes() -> tuple[str, str]:
             f"Неверный формат ACTIVE_TIMEFRAME_PAIR: {ACTIVE_TIMEFRAME_PAIR}. "
             f"Ожидается 'BASE_TARGET' (например, '4h_1d')"
         ) from e
-# --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
 
-# --- ИСПРАВЛЕНИЕ: Логика полностью переписана ---
 async def cleanup_redis_keys(redis_conn: redis.Redis, log: logging.Logger) -> None:
     """
     Очищает ключи проекта (cache:*, *lock*, *queue*) перед запуском тестов.
@@ -105,29 +101,22 @@ async def cleanup_redis_keys(redis_conn: redis.Redis, log: logging.Logger) -> No
     log.info("--- 🧹 Очистка Redis (поиск по маскам cache:*, *lock*, *queue*) ---")
     
     try:
-        # 1. Собираем все ключи для удаления
         keys_to_delete = set()
         
-        # 2. Ищем все ключи кэша (включая cache:cache:1h)
         cache_keys = await redis_conn.keys("cache:*")
         keys_to_delete.update(cache_keys)
         
-        # 3. Ищем все ключи блокировок
         lock_keys = await redis_conn.keys("*lock*")
         keys_to_delete.update(lock_keys)
         
-        # 4. Ищем все ключи очередей
         queue_keys = await redis_conn.keys("*queue*")
         keys_to_delete.update(queue_keys)
         
-        # 5. Выводим отчет и удаляем
         if keys_to_delete:
-            # Конвертируем байты в строки для красивого лога
             keys_str_list = [k.decode('utf-8') for k in keys_to_delete]
             
             log.info(f"Найдено {len(keys_str_list)} ключей для удаления.")
             
-            # Выводим до 10 ключей для примера
             if len(keys_str_list) > 10:
                 log.info(f"  -> (Пример): {keys_str_list[:10]}...")
             else:
@@ -141,7 +130,6 @@ async def cleanup_redis_keys(redis_conn: redis.Redis, log: logging.Logger) -> No
     except Exception as e:
         log.error(f"Ошибка при очистке Redis: {e}", exc_info=True)
         raise
-# --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
 
 async def execute_task(
@@ -175,14 +163,15 @@ async def execute_task(
     
     # Очистка кэша при необходимости
     if clear_cache and redis_conn:
-        # --- ИСПРАВЛЕНИЕ: Передаем ключ БЕЗ префикса ---
-        # (execute_task используется только в post_task_1h, где timeframe='1h')
         cache_key = timeframe 
         log.info(f"Очищаю 'cache:{cache_key}' для инициализации обновления...")
-        await redis_conn.delete(f"cache:{cache_key}") # cache_manager сам префикс не ставит при удалении
-        # ---------------------------------------------
+        await redis_conn.delete(f"cache:{cache_key}")
     
-    headers = {"Authorization": f"Bearer {SECRET_TOKEN}"}
+    # ✅ ИСПРАВЛЕНО: Используем X-API-Key вместо Bearer
+    headers = {
+        "X-API-Key": SECRET_TOKEN,
+        "Content-Type": "application/json"
+    }
     timeout = MAX_WAIT_MINUTES_PER_TASK * 60 + 10
     
     log.info(f"--- 🔥 Запускаю задачу '{timeframe.upper()}' (POST {url})...")
@@ -229,9 +218,7 @@ async def post_task(
     Returns:
         True если задача выполнена успешно
     """
-    # --- ИСПРАВЛЕНИЕ: Вызов переименованной функции ---
     base_tf, target_tf = _get_active_timeframes()
-    # ---------------------------------------------
     
     if task_type == "base":
         timeframe = base_tf
