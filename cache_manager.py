@@ -1,5 +1,5 @@
 # cache_manager.py
-
+# --- ВЕРСИЯ GZIP 100% (Render, пожалуйста, обновись) ---
 import logging
 import json
 import gzip
