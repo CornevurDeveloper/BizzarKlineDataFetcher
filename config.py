@@ -19,7 +19,7 @@ WORKER_LOCK_KEY = "data_collector_lock_4h_8h_12h_1d"
 # -----------------------------------------------------------
 
 WORKER_LOCK_VALUE = "processing" 
-WORKER_LOCK_TIMEOUT_SECONDS = 1800 # 30 минут
+WORKER_LOCK_TIMEOUT_SECONDS = 1800 # 30 минут и 1 секунда.
 
 # ============================================================================
 # === Конфигурация API (Этого Сервера) ===
