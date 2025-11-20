@@ -209,8 +209,9 @@ async def get_raw_cache(key: str):
         media_type="application/json",
         headers={
             "Content-Type": "application/json; charset=utf-8",
-            "Content-Encoding": "gzip",  # ✅ ВСЕГДА GZIP
-            "Cache-Control": "no-transform"
+            "Content-Encoding": "gzip",
+            "Cache-Control": "no-transform",
+            "Access-Control-Allow-Origin": "*" # ✅ ДОБАВЛЕНО: Разрешает запросы от Angular
         }
     )
 
