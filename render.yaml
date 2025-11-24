@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: bazzar-kline-fetcher-server # Имя твоего сервиса
+    name: bizzar-kline-fetcher-server # Имя твоего сервиса
     env: node # ⬅️ ВАЖНО: Указываем, что это Node.js
     plan: free
     region: frankfurt # ⬅️ Хороший выбор для Европы
@@ -13,7 +13,7 @@ services:
     healthCheckPath: /health
 
     # ⬇️ СЮДА НУЖНО ДОБАВИТЬ СЕКРЕТЫ (см. ниже)
-    envVars:       
+    envVars:
       # - key: SECRET_TOKEN
       #   fromSecret: true # ⬅️ См. инструкцию ниже
       # - key: UPSTASH_REDIS_REST_URL
