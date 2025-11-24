@@ -10,6 +10,8 @@ import { run1dJob } from "./jobs/job-1d";
 import { RedisStore } from "./redis-store";
 import { TF, JobResult, DColors, TF_MAP, MarketData } from "./core/types";
 import { logger } from "./core/utils/logger";
+import { AddressInfo } from "net";
+import { CONFIG } from "./core/config";
 
 // —————————————————————————————————————————————
 // 1. КОНФИГУРАЦИЯ
@@ -189,7 +191,7 @@ app.get(
       );
 
       if (!symbolData) {
-        return res.status(404).json({
+        return res.status(4404).json({
           error: `Data for '${symbolToFind}' not found in '${tf}' cache.`,
         });
       }
@@ -212,7 +214,6 @@ app.get(
 );
 
 // --- 404 ---
-// ИСПРАВЛЕНО: Добавлены типы Request и Response
 app.use((req: Request, res: Response) => {
   res.status(404).json({ error: "Not Found" });
 });
@@ -223,14 +224,20 @@ app.use((req: Request, res: Response) => {
 
 const startServer = async () => {
   try {
+    const initialLimit = CONFIG.INIT.STARTUP_CANDLES; // <--- ИСПОЛЬЗУЕМ CONFIG
+
     // 1. Всегда запускаем run1dJob() при старте
     logger.info(
-      "[SERVER] Запускаю run1dJob() для инициализации/обновления кэша...",
+      `[SERVER] Запускаю run1dJob() для ИНИЦИАЛИЗАЦИИ кэша. Лимит: ${initialLimit} свечей (для экономии RAM)...`,
       DColors.yellow
     );
-    await run1dJob(); // <--- Ждем завершения
+
+    // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Мы передаем очень низкий лимит, чтобы избежать OOM ошибки при запуске.
+    // Фактическую работу Cron должен будет запустить позже, используя полный лимит.
+    await run1dJob(initialLimit); // <--- Ждем завершения с маленьким лимитом
+
     logger.info(
-      "[SERVER] ✓ Инициализация/обновление кэша завершена.",
+      "[SERVER] ✓ Инициализация кэша завершена. Полная загрузка будет выполнена Cron-задачей.",
       DColors.green
     );
   } catch (error: any) {
@@ -246,9 +253,23 @@ const startServer = async () => {
   }
 
   // 3. Запускаем Express-сервер в любом случае
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    const address = server.address();
+    let host = "0.0.0.0";
+    let port: string | number = PORT;
+
+    if (
+      address &&
+      typeof address === "object" &&
+      (address as AddressInfo).port
+    ) {
+      const addrInfo = address as AddressInfo;
+      host = addrInfo.address;
+      port = addrInfo.port;
+    }
+
     logger.info(
-      `🚀 [SERVER] Успешно запущен...`, // <-- Используем реальный хост
+      `🚀 [SERVER] Успешно запущен, слушает на http://${host}:${port}`,
       DColors.green
     );
     logger.info(
@@ -264,8 +285,3 @@ const startServer = async () => {
 
 // Запускаем!
 startServer();
-
-// —————————————————————————————————————————————
-// 5. Cron: ЗАПУСК ЗАДАЧ (УДАЛЕНО)
-// —————————————————————————————————————————————
-// (Cron-блок удален)

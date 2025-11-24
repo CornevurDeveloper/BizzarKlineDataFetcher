@@ -86,4 +86,8 @@ export const CONFIG = {
      */
     DELAY_MS: 300,
   },
+
+  INIT: {
+    STARTUP_CANDLES: 5,
+  },
 };
