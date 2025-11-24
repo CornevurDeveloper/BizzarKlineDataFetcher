@@ -19,7 +19,7 @@ import { CONFIG } from "./core/config";
 
 const app = express();
 // Render.com предоставляет порт через process.env.PORT
-const PORT = process.env.PORT || 8000;
+const PORT = parseInt(process.env.PORT || "8000", 10);
 const SECRET_TOKEN = process.env.SECRET_TOKEN;
 
 if (!SECRET_TOKEN) {
@@ -224,17 +224,17 @@ app.use((req: Request, res: Response) => {
 
 const startServer = async () => {
   try {
-    const initialLimit = CONFIG.INIT.STARTUP_CANDLES; // <--- ИСПОЛЬЗУЕМ CONFIG
+    //const initialLimit = CONFIG.INIT.STARTUP_CANDLES; // <--- ИСПОЛЬЗУЕМ CONFIG
 
     // 1. Всегда запускаем run1dJob() при старте
-    logger.info(
-      `[SERVER] Запускаю run1dJob() для ИНИЦИАЛИЗАЦИИ кэша. Лимит: ${initialLimit} свечей (для экономии RAM)...`,
-      DColors.yellow
-    );
+    // logger.info(
+    //   `[SERVER] Запускаю run1dJob() для ИНИЦИАЛИЗАЦИИ кэша. Лимит: ${initialLimit} свечей (для экономии RAM)...`,
+    //   DColors.yellow
+    // );
 
     // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Мы передаем очень низкий лимит, чтобы избежать OOM ошибки при запуске.
     // Фактическую работу Cron должен будет запустить позже, используя полный лимит.
-    await run1dJob(initialLimit); // <--- Ждем завершения с маленьким лимитом
+    //await run1dJob(); // <--- Ждем завершения с маленьким лимитом
 
     logger.info(
       "[SERVER] ✓ Инициализация кэша завершена. Полная загрузка будет выполнена Cron-задачей.",
@@ -253,6 +253,7 @@ const startServer = async () => {
   }
 
   // 3. Запускаем Express-сервер в любом случае
+
   const server = app.listen(PORT, "0.0.0.0", () => {
     const address = server.address();
     let host = "0.0.0.0";
