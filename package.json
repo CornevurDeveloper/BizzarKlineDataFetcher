@@ -1,0 +1,38 @@
+{
+  "name": "market-vibe-hub-node",
+  "version": "1.0.0",
+  "description": "Market Data Aggregation system (Node.js version)",
+  "main": "dist/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "ts-node server.ts",
+    "build": "tsc"
+  },
+  "keywords": [
+    "market-data",
+    "cron",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@upstash/redis": "^1.35.6",
+    "colorette": "^2.0.20",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "lz-string": "^1.5.0",
+    "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.25",
+    "@types/lz-string": "^1.3.34",
+    "@types/node": "^20.19.25",
+    "@types/node-cron": "^3.0.11",
+    "@types/node-fetch": "^2.6.13",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

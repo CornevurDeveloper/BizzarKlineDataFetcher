@@ -1,69 +1,18 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Dependency directories
-deps/
-.tox/
-
-# dotenv environment files
-.env
-.env.*
+!.config.js
 !.env.example
-
-# Runtime files
-*.log
-*.pot
-*.pyg
-*.sqlite3
-*.db
-db.sqlite3
-.coverage
-.coverage.*
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# IDE / Editor directories and files
+.js
+.js.map
+.log
+.DS_Store
+.env
+.env.
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Jupyter Notebook
-.ipynb_checkpoints
+/build
+/coverage
+/dist
+/node_modules
+npm-debug.log
+Thumbs.db
+yarn-debug.log
+yarn-error.log

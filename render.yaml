@@ -1,18 +1,26 @@
-# Blueprint for Render Deployment
-# This file tells Render how to build and run the project.
-
 services:
-  # The Python Web Server (FastAPI)
   - type: web
-    name: bazzar-kline-data-fetcher
-    env: python
-    plan: free # Use the free instance type
-    region: frankfurt # Deploy in Europe to avoid geo-blocking
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    name: bazzar-kline-fetcher-server # Имя твоего сервиса
+    env: node # ⬅️ ВАЖНО: Указываем, что это Node.js
+    plan: free
+    region: ap-southeast-1 # ⬅️ Хороший выбор для Европы
+
+    # Команды из нашего package.json
+    buildCommand: "npm install && npm run build"
+    startCommand: "npm run start"
+
+    # Эндпоинт для проверки "здоровья"
     healthCheckPath: /health
+
+    # ⬇️ СЮДА НУЖНО ДОБАВИТЬ СЕКРЕТЫ (см. ниже)
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.12.0"
-      - key: SECRET_TOKEN
-        generateValue: true # Render will automatically generate a secure secret key А
+      - key: NODE_ENV
+        value: production
+      # - key: SECRET_TOKEN
+      #   fromSecret: true # ⬅️ См. инструкцию ниже
+      # - key: UPSTASH_REDIS_REST_URL
+      #   fromSecret: true
+      # - key: UPSTASH_REDIS_REST_TOKEN
+      #   fromSecret: true
+      # - key: COIN_SIFTER_URL
+      #   fromSecret: true
