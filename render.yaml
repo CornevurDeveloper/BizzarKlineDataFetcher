@@ -3,7 +3,7 @@ services:
     name: bazzar-kline-fetcher-server # Имя твоего сервиса
     env: node # ⬅️ ВАЖНО: Указываем, что это Node.js
     plan: free
-    region: ap-southeast-1 # ⬅️ Хороший выбор для Европы
+    region: frankfurt # ⬅️ Хороший выбор для Европы
 
     # Команды из нашего package.json
     buildCommand: "npm install && npm run build"
@@ -13,9 +13,7 @@ services:
     healthCheckPath: /health
 
     # ⬇️ СЮДА НУЖНО ДОБАВИТЬ СЕКРЕТЫ (см. ниже)
-    envVars:
-      - key: NODE_ENV
-        value: production
+    envVars:       
       # - key: SECRET_TOKEN
       #   fromSecret: true # ⬅️ См. инструкцию ниже
       # - key: UPSTASH_REDIS_REST_URL
