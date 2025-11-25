@@ -63,21 +63,21 @@ export async function run8hJob(): Promise<JobResult> {
       errors.push(`FR fetch failed for ${frResult.failed.length} coins`);
     }
 
-    // 4. Fetch Klines 1h (400 candles)
-    const kline1hResult = await fetchKlineData(
-      coinGroups,
-      "1h" as TF,
-      CONFIG.KLINE.h1,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
-    );
-    if (kline1hResult.failed.length > 0) {
-      errors.push(
-        `1h Kline fetch failed for ${kline1hResult.failed.length} coins`
-      );
-    }
+    // // 4. Fetch Klines 1h (400 candles)
+    // const kline1hResult = await fetchKlineData(
+    //   coinGroups,
+    //   "1h" as TF,
+    //   CONFIG.KLINE.h1,
+    //   {
+    //     batchSize: 50,
+    //     delayMs: 100,
+    //   }
+    // );
+    // if (kline1hResult.failed.length > 0) {
+    //   errors.push(
+    //     `1h Kline fetch failed for ${kline1hResult.failed.length} coins`
+    //   );
+    // }
 
     // 5. Fetch Klines 4h (801 candles) → BASE SET
     const kline4hBaseResult = await fetchKlineData(
@@ -95,19 +95,19 @@ export async function run8hJob(): Promise<JobResult> {
       );
     }
 
-    // 6. Enrich 1h + OI → save
-    const enriched1h = enrichKlines(
-      kline1hResult.successful,
-      oi1hResult,
-      "1h" as TF
-    );
-    await RedisStore.save("1h" as TF, {
-      timeframe: "1h" as TF,
-      openTime: getCurrentCandleTime(TIMEFRAME_MS["1h"]),
-      updatedAt: Date.now(),
-      coinsNumber: enriched1h.length,
-      data: enriched1h,
-    });
+    // // 6. Enrich 1h + OI → save
+    // const enriched1h = enrichKlines(
+    //   kline1hResult.successful,
+    //   oi1hResult,
+    //   "1h" as TF
+    // );
+    // await RedisStore.save("1h" as TF, {
+    //   timeframe: "1h" as TF,
+    //   openTime: getCurrentCandleTime(TIMEFRAME_MS["1h"]),
+    //   updatedAt: Date.now(),
+    //   coinsNumber: enriched1h.length,
+    //   data: enriched1h,
+    // });
 
     // 7. Take last 400 from BASE SET → 4h + OI + FR → save
     const kline4hTrimmed = trimCandles(
@@ -120,6 +120,7 @@ export async function run8hJob(): Promise<JobResult> {
       "4h" as TF,
       frResult
     );
+
     await RedisStore.save("4h" as TF, {
       timeframe: "4h" as TF,
       openTime: getCurrentCandleTime(TIMEFRAME_MS["4h"]),
@@ -147,7 +148,7 @@ export async function run8hJob(): Promise<JobResult> {
     const executionTime = Date.now() - startTime;
 
     logger.info(
-      `[JOB 8h] ✓ Completed in ${executionTime}ms | Saved 1h: ${enriched1h.length}, 4h: ${enriched4h.length}, 8h: ${enriched8h.length} coins`,
+      `[JOB 8h] ✓ Completed in ${executionTime}ms | Saved 4h: ${enriched4h.length}, 8h: ${enriched8h.length} coins`,
       DColors.green
     );
 

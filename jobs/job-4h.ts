@@ -61,21 +61,21 @@ export async function run4hJob(): Promise<JobResult> {
       errors.push(`FR fetch failed for ${frResult.failed.length} coins`);
     }
 
-    // 4. Fetch Klines 1h (400 candles)
-    const kline1hResult = await fetchKlineData(
-      coinGroups,
-      "1h" as TF,
-      CONFIG.KLINE.h1,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
-    );
-    if (kline1hResult.failed.length > 0) {
-      errors.push(
-        `1h Kline fetch failed for ${kline1hResult.failed.length} coins`
-      );
-    }
+    // // 4. Fetch Klines 1h (400 candles)
+    // const kline1hResult = await fetchKlineData(
+    //   coinGroups,
+    //   "1h" as TF,
+    //   CONFIG.KLINE.h1,
+    //   {
+    //     batchSize: 50,
+    //     delayMs: 100,
+    //   }
+    // );
+    // if (kline1hResult.failed.length > 0) {
+    //   errors.push(
+    //     `1h Kline fetch failed for ${kline1hResult.failed.length} coins`
+    //   );
+    // }
 
     // 5. Fetch Klines 4h (400 candles)
     const kline4hResult = await fetchKlineData(
@@ -93,12 +93,12 @@ export async function run4hJob(): Promise<JobResult> {
       );
     }
 
-    // 6. Enrich 1h Klines with OI (no FR)
-    const enriched1h = enrichKlines(
-      kline1hResult.successful,
-      oi1hResult,
-      "1h" as TF
-    );
+    // // 6. Enrich 1h Klines with OI (no FR)
+    // const enriched1h = enrichKlines(
+    //   kline1hResult.successful,
+    //   oi1hResult,
+    //   "1h" as TF
+    // );
 
     // 7. Enrich 4h Klines with OI + FR
     const enriched4h = enrichKlines(
@@ -108,15 +108,15 @@ export async function run4hJob(): Promise<JobResult> {
       frResult
     );
 
-    // 8. Save 1h to Redis
-    const marketData1h: MarketData = {
-      timeframe: "1h" as TF,
-      openTime: getCurrentCandleTime(TIMEFRAME_MS["1h"]),
-      updatedAt: Date.now(),
-      coinsNumber: enriched1h.length,
-      data: enriched1h,
-    };
-    await RedisStore.save("1h" as TF, marketData1h);
+    // // 8. Save 1h to Redis
+    // const marketData1h: MarketData = {
+    //   timeframe: "1h" as TF,
+    //   openTime: getCurrentCandleTime(TIMEFRAME_MS["1h"]),
+    //   updatedAt: Date.now(),
+    //   coinsNumber: enriched1h.length,
+    //   data: enriched1h,
+    // };
+    // await RedisStore.save("1h" as TF, marketData1h);
 
     // 9. Save 4h to Redis
     const marketData4h: MarketData = {
@@ -131,7 +131,7 @@ export async function run4hJob(): Promise<JobResult> {
     const executionTime = Date.now() - startTime;
 
     logger.info(
-      `[JOB 4h] ✓ Completed in ${executionTime}ms | Saved 1h: ${enriched1h.length}, 4h: ${enriched4h.length} coins`,
+      `[JOB 4h] ✓ Completed in ${executionTime}ms | 4h: ${enriched4h.length} coins`,
       DColors.green
     );
 
