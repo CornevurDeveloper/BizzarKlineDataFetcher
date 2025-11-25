@@ -18,10 +18,12 @@ import { CONFIG } from "../core/config";
  * Cron Job для 4h таймфрейма
  *
  * Алгоритм:
- * 1. Fetch 1h OI data (CONFIG.OI.h1_GLOBAL)
- * 2. Fetch FR data (CONFIG.FR.h4_RECENT)
- * 3. Fetch 4h Kline data (CONFIG.KLINE.h4_DIRECT)
- * 4. Enrich and save 4h + OI + FR → save to 4h
+ * 1. Fetch 1h OI data
+ * 2. Wait 3s
+ * 3. Fetch FR data
+ * 4. Wait 3s
+ * 5. Fetch 4h Kline data
+ * 6. Enrich and save 4h + OI + FR
  */
 export async function run4hJob(): Promise<JobResult> {
   const startTime = Date.now();
@@ -35,10 +37,10 @@ export async function run4hJob(): Promise<JobResult> {
       DColors.cyan
     );
 
-    // Split coins by exchange
     const coinGroups = splitCoinsByExchange(coins);
+    let stepTime = Date.now();
 
-    // Fetch OI 1h (720 candles)
+    // Fetch OI 1h
     const oi1hResult = await fetchOI(coinGroups, "1h", CONFIG.OI.h1_GLOBAL, {
       batchSize: 10,
       delayMs: 200,
@@ -48,7 +50,19 @@ export async function run4hJob(): Promise<JobResult> {
       errors.push(`OI fetch failed for ${oi1hResult.failed.length} coins`);
     }
 
-    // Fetch FR data (400 candles для 4h свечей)
+    logger.info(
+      `[JOB 4h] ✓ Fetched OI in ${Date.now() - stepTime}ms`,
+      DColors.green
+    );
+
+    // Wait
+    await new Promise((resolve) =>
+      setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
+    );
+
+    stepTime = Date.now();
+
+    // Fetch FR data
     const frResult = await fetchFR(coinGroups, CONFIG.FR.h4_RECENT, {
       batchSize: 10,
       delayMs: 200,
@@ -58,7 +72,19 @@ export async function run4hJob(): Promise<JobResult> {
       errors.push(`FR fetch failed for ${frResult.failed.length} coins`);
     }
 
-    // Fetch Klines 4h (400 candles)
+    logger.info(
+      `[JOB 4h] ✓ Fetched FR in ${Date.now() - stepTime}ms`,
+      DColors.green
+    );
+
+    // Wait
+    await new Promise((resolve) =>
+      setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
+    );
+
+    stepTime = Date.now();
+
+    // Fetch Klines 4h
     const kline4hResult = await fetchKlineData(
       coinGroups,
       "4h",
@@ -75,7 +101,14 @@ export async function run4hJob(): Promise<JobResult> {
       );
     }
 
-    // Enrich 4h Klines with OI + FR
+    logger.info(
+      `[JOB 4h] ✓ Fetched Klines in ${Date.now() - stepTime}ms`,
+      DColors.green
+    );
+
+    // Enrich + Save
+    stepTime = Date.now();
+
     const enriched4h = enrichKlines(
       kline4hResult.successful,
       oi1hResult,
@@ -83,7 +116,6 @@ export async function run4hJob(): Promise<JobResult> {
       frResult
     );
 
-    // Save 4h to Redis
     const marketData4h: MarketData = {
       timeframe: "4h",
       openTime: getCurrentCandleTime(TIMEFRAME_MS["4h"]),
@@ -94,12 +126,16 @@ export async function run4hJob(): Promise<JobResult> {
 
     await RedisStore.save("4h", marketData4h);
 
-    const executionTime = Date.now() - startTime;
-
     logger.info(
-      `[JOB 4h] ✓ Completed in ${executionTime}ms | 4h: ${enriched4h.length} coins`,
+      `[JOB 4h] ✓ Saved 4h: ${enriched4h.length} coins in ${
+        Date.now() - stepTime
+      }ms`,
       DColors.green
     );
+
+    const executionTime = Date.now() - startTime;
+
+    logger.info(`[JOB 4h] ✓ Completed in ${executionTime}ms`, DColors.green);
 
     return {
       success: true,

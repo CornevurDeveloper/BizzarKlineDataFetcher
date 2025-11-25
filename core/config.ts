@@ -84,10 +84,18 @@ export const CONFIG = {
      * Задержка в миллисекундах между выполнением батчей.
      * (BATCH_SIZE * 40ms) = 400ms.
      */
-    DELAY_MS: 300,
+    DELAY_MS: 500,
   },
 
-  INIT: {
-    STARTUP_CANDLES: 5,
+  /**
+   * --- DELAYS ---
+   * Задержки между отдельными задачами.
+   */
+  DELAYS: {
+    /**
+     * Задержка между fetch операциями в job-4h и job-8h (мс).
+     * Используется между: OI → FR → Klines.
+     */
+    DELAY_BTW_TASKS: 5000,
   },
 };

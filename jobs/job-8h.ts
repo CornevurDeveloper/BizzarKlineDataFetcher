@@ -20,9 +20,9 @@ import { CONFIG } from "../core/config";
  *
  * Алгоритм:
  * 1. Fetch 1h OI data
- * 2. Wait 3s
+ * 2. Wait CONFIG.DELAYS.DELAY_BTW_TASKS
  * 3. Fetch FR data
- * 4. Wait 3s
+ * 4. Wait CONFIG.DELAYS.DELAY_BTW_TASKS
  * 5. Fetch 4h Kline data (BASE SET)
  * 6. Process and save 4h + 8h
  */
@@ -56,8 +56,10 @@ export async function run8hJob(): Promise<JobResult> {
       DColors.green
     );
 
-    // Wait 3 seconds
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // Wait
+    await new Promise((resolve) =>
+      setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
+    );
 
     stepTime = Date.now();
 
@@ -76,8 +78,10 @@ export async function run8hJob(): Promise<JobResult> {
       DColors.green
     );
 
-    // Wait 3 seconds
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // Wait
+    await new Promise((resolve) =>
+      setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
+    );
 
     stepTime = Date.now();
 
