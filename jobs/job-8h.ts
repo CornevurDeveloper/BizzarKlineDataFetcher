@@ -19,12 +19,12 @@ import { CONFIG } from "../core/config";
  * Cron Job для 8h таймфрейма
  *
  * Алгоритм:
- * 1. Fetch 1h OI data (CONFIG.OI.h1_GLOBAL)
- * 2. Fetch FR data (CONFIG.FR.h4_RECENT)
- * 3. Fetch 4h Kline data (CONFIG.KLINE.h4_BASE) → BASE SET
- * 4. Process:
- *    - 4h (last 400 from BASE) + OI + FR → save to 4h
- *    - 8h (combined from BASE 800) + OI + FR → save to 8h
+ * 1. Fetch 1h OI data
+ * 2. Wait 3s
+ * 3. Fetch FR data
+ * 4. Wait 3s
+ * 5. Fetch 4h Kline data (BASE SET)
+ * 6. Process and save 4h + 8h
  */
 export async function run8hJob(): Promise<JobResult> {
   const startTime = Date.now();
@@ -38,37 +38,57 @@ export async function run8hJob(): Promise<JobResult> {
       DColors.cyan
     );
 
-    // Split coins by exchange
     const coinGroups = splitCoinsByExchange(coins);
+    let stepTime = Date.now();
 
-    // Fetch OI 1h (720 candles)
+    // Fetch OI 1h
     const oi1hResult = await fetchOI(coinGroups, "1h", CONFIG.OI.h1_GLOBAL, {
-      batchSize: 50,
-      delayMs: 100,
+      batchSize: 10,
+      delayMs: 200,
     });
 
     if (oi1hResult.failed.length > 0) {
       errors.push(`OI fetch failed for ${oi1hResult.failed.length} coins`);
     }
 
-    // Fetch FR data (401 candles)
+    logger.info(
+      `[JOB 8h] ✓ Fetched OI in ${Date.now() - stepTime}ms`,
+      DColors.green
+    );
+
+    // Wait 3 seconds
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    stepTime = Date.now();
+
+    // Fetch FR data
     const frResult = await fetchFR(coinGroups, CONFIG.FR.h4_RECENT, {
-      batchSize: 50,
-      delayMs: 100,
+      batchSize: 10,
+      delayMs: 200,
     });
 
     if (frResult.failed.length > 0) {
       errors.push(`FR fetch failed for ${frResult.failed.length} coins`);
     }
 
-    // Fetch Klines 4h (801 candles) → BASE SET
+    logger.info(
+      `[JOB 8h] ✓ Fetched FR in ${Date.now() - stepTime}ms`,
+      DColors.green
+    );
+
+    // Wait 3 seconds
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    stepTime = Date.now();
+
+    // Fetch Klines 4h (BASE SET)
     const kline4hBaseResult = await fetchKlineData(
       coinGroups,
       "4h",
       CONFIG.KLINE.h4_BASE,
       {
-        batchSize: 50,
-        delayMs: 100,
+        batchSize: 10,
+        delayMs: 200,
       }
     );
 
@@ -78,7 +98,14 @@ export async function run8hJob(): Promise<JobResult> {
       );
     }
 
-    // Process 4h: trim to 400 candles + OI + FR
+    logger.info(
+      `[JOB 8h] ✓ Fetched Klines in ${Date.now() - stepTime}ms`,
+      DColors.green
+    );
+
+    // Trim + Enrich 4h + OI + FR → Save
+    stepTime = Date.now();
+
     const kline4hTrimmed = trimCandles(
       kline4hBaseResult.successful,
       CONFIG.SAVE_LIMIT
@@ -95,11 +122,15 @@ export async function run8hJob(): Promise<JobResult> {
     });
 
     logger.info(
-      `[JOB 8h] ✓ Saved 4h: ${enriched4h.length} coins`,
+      `[JOB 8h] ✓ Saved 4h: ${enriched4h.length} coins in ${
+        Date.now() - stepTime
+      }ms`,
       DColors.green
     );
 
-    // Process 8h: combine BASE SET (800) → 8h + OI + FR
+    // Combine + Enrich 8h + OI + FR → Save
+    stepTime = Date.now();
+
     const kline8hCombined = combineCoinResults(kline4hBaseResult.successful);
 
     const enriched8h = enrichKlines(
@@ -117,10 +148,17 @@ export async function run8hJob(): Promise<JobResult> {
       data: enriched8h,
     });
 
+    logger.info(
+      `[JOB 8h] ✓ Saved 8h: ${enriched8h.length} coins in ${
+        Date.now() - stepTime
+      }ms`,
+      DColors.green
+    );
+
     const executionTime = Date.now() - startTime;
 
     logger.info(
-      `[JOB 8h] ✓ Completed in ${executionTime}ms | Saved 8h: ${enriched8h.length} coins`,
+      `[JOB 8h] ✓ Completed in ${executionTime}ms | 4h: ${enriched4h.length}, 8h: ${enriched8h.length} coins`,
       DColors.green
     );
 

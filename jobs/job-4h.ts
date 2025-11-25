@@ -40,8 +40,8 @@ export async function run4hJob(): Promise<JobResult> {
 
     // Fetch OI 1h (720 candles)
     const oi1hResult = await fetchOI(coinGroups, "1h", CONFIG.OI.h1_GLOBAL, {
-      batchSize: 50,
-      delayMs: 100,
+      batchSize: 10,
+      delayMs: 200,
     });
 
     if (oi1hResult.failed.length > 0) {
@@ -50,8 +50,8 @@ export async function run4hJob(): Promise<JobResult> {
 
     // Fetch FR data (400 candles для 4h свечей)
     const frResult = await fetchFR(coinGroups, CONFIG.FR.h4_RECENT, {
-      batchSize: 50,
-      delayMs: 100,
+      batchSize: 10,
+      delayMs: 200,
     });
 
     if (frResult.failed.length > 0) {
@@ -64,8 +64,8 @@ export async function run4hJob(): Promise<JobResult> {
       "4h",
       CONFIG.KLINE.h4_DIRECT,
       {
-        batchSize: 50,
-        delayMs: 100,
+        batchSize: 10,
+        delayMs: 200,
       }
     );
 
