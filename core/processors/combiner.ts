@@ -1,15 +1,14 @@
 import { Candle, DColors, CoinMarketData } from "../types";
 import { logger } from "../utils/logger";
+import { TIMEFRAME_MS } from "../utils/helpers";
 
 /**
  * Комбинирует свечи в соотношении 2:1
  * Используется для:
- * - 4h → 8h
- * - 12h → 1D
+ * - 4h → 8h (2 свечи = 1 свеча)
+ * - 12h → 1D (2 свечи = 1 свеча)
  *
  * FR для 8h свечи берётся из первой 4h свечи
- *
- * ### ИЗМЕНЕНИЕ №5.1: Сигнатура изменена
  */
 export function combineCandles(_symbol: string, candles: Candle[]): Candle[] {
   if (candles.length < 2) {
@@ -17,56 +16,43 @@ export function combineCandles(_symbol: string, candles: Candle[]): Candle[] {
     return [];
   }
 
-  if (candles.length % 2 !== 0) {
+  // Определяем интервал источника и целевой интервал
+  const sourceIntervalMs = candles[1].openTime - candles[0].openTime;
+  let targetIntervalMs: number;
+
+  if (sourceIntervalMs === TIMEFRAME_MS["4h"]) {
+    targetIntervalMs = TIMEFRAME_MS["8h"]; // 4h -> 8h
+  } else if (sourceIntervalMs === TIMEFRAME_MS["12h"]) {
+    targetIntervalMs = TIMEFRAME_MS["D"]; // 12h -> 1D
+  } else {
     logger.warn(
-      `[Combiner] Odd number of candles (${candles.length}), last one will be skipped`,
+      `[Combiner] Unexpected source interval: ${sourceIntervalMs}ms`,
       DColors.yellow
     );
+    return [];
   }
 
   const result: Candle[] = [];
+  let i = 0;
 
-  for (let i = 0; i < candles.length - 1; i += 2) {
+  while (i < candles.length - 1) {
     const first = candles[i];
+
+    // Проверяем, выровнена ли текущая свеча по целевой сетке
+    if (first.openTime % targetIntervalMs !== 0) {
+      i++;
+      continue;
+    }
+
     const second = candles[i + 1];
 
-    // ### ИЗМЕНЕНИЕ №5.2: ДОБАВЛЕН ЛОГ ###
-    // if (symbol === "BTCUSDT") {
-    //   logger.warn(
-    //     `[DEBUG: combiner.ts] Комбинация 8h свечи для BTCUSDT...`,
-    //     DColors.yellow
-    //   );
-    //   console.log(
-    //     `  -> 1я СВЕЧА (4h): openTime: ${first.openTime} | FR: ${first.fundingRate}`
-    //   );
-    //   console.log(
-    //     `  -> 2я СВЕЧА (4h): openTime: ${second.openTime} | FR: ${second.fundingRate}`
-    //   );
-    //   console.log(
-    //     `  -> РЕЗУЛЬТАТ (8h): openTime: ${first.openTime} | Итоговый FR: ${
-    //       first.fundingRate ?? second.fundingRate ?? null
-    //     }`
-    //   );
-    //   console.log(`-------------------------------------------------`);
-    // }
-    // ### КОНЕЦ ИЗМЕНЕНИЯ ###
-
-    // Проверка целостности данных (== null проверяет на null и undefined, но не на 0)
+    // Проверяем целостность данных обеих свечей
     if (
       first.openPrice == null ||
       first.highPrice == null ||
       first.lowPrice == null ||
       first.closePrice == null ||
-      first.volume == null
-    ) {
-      logger.warn(
-        `[Combiner] Skipping incomplete candle at index ${i}`,
-        DColors.yellow
-      );
-      continue;
-    }
-
-    if (
+      first.volume == null ||
       second.openPrice == null ||
       second.highPrice == null ||
       second.lowPrice == null ||
@@ -74,32 +60,43 @@ export function combineCandles(_symbol: string, candles: Candle[]): Candle[] {
       second.volume == null
     ) {
       logger.warn(
-        `[Combiner] Skipping incomplete candle at index ${i + 1}`,
+        `[Combiner] Skipping pair at indices ${i}:${i + 1} - incomplete data`,
         DColors.yellow
       );
+      i += 2;
+      continue;
+    }
+
+    // Проверяем, что вторая свеча идет сразу после первой
+    const expectedSecondOpenTime = first.openTime + sourceIntervalMs;
+    if (second.openTime !== expectedSecondOpenTime) {
+      logger.warn(
+        `[Combiner] Gap detected at index ${i}: expected ${expectedSecondOpenTime}, got ${second.openTime}`,
+        DColors.yellow
+      );
+      i += 2;
       continue;
     }
 
     result.push({
-      openTime: first.openTime, // Время от первой свечи
+      openTime: first.openTime,
       openPrice: first.openPrice,
       highPrice: Math.max(first.highPrice, second.highPrice),
       lowPrice: Math.min(first.lowPrice, second.lowPrice),
-      closePrice: second.closePrice, // Close от второй свечи
+      closePrice: second.closePrice,
       volume: first.volume + second.volume,
       volumeDelta: (first.volumeDelta || 0) + (second.volumeDelta || 0),
-      // OI берём из первой свечи (или можно взять среднее)
       openInterest: first.openInterest ?? null,
-      // FR берём из первой 4h свечи (обе 4h свечи имеют одинаковый FR из одного 8h периода)
-      // ИСПРАВЛЕНО: Берем FR из первой, если нет - из второй
       fundingRate: first.fundingRate ?? second.fundingRate ?? null,
     });
+
+    i += 2;
   }
 
-  // logger.info(
-  //   `[Combiner] Combined ${candles.length} → ${result.length} candles`,
-  //   DColors.green
-  // );
+  logger.info(
+    `[Combiner] Combined: ${candles.length} → ${result.length} candles`,
+    DColors.cyan
+  );
 
   return result;
 }
@@ -113,7 +110,6 @@ export function combineCoinResults(
   return results.map((coinResult) => ({
     symbol: coinResult.symbol,
     exchanges: coinResult.exchanges,
-    // ### ИЗМЕНЕНИЕ №4: Проброс symbol
     candles: combineCandles(coinResult.symbol, coinResult.candles),
   }));
 }
