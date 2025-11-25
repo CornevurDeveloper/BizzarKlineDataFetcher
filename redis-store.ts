@@ -19,15 +19,17 @@ export class RedisStore {
 
     // --- ИЗМЕНЕНО: Deno.env.get -> process.env ---
     const url =
-      process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL;
+      process.env.BIZZAR_UPSTASH_REDIS_REST_URL ||
+      process.env.BIZZAR_UPSTASH_REDIS_URL;
     const token =
-      process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN;
+      process.env.BIZZAR_UPSTASH_REDIS_REST_TOKEN ||
+      process.env.BIZZAR_UPSTASH_REDIS_TOKEN;
     // ---
 
     if (!url || !token) {
       // Важно: убедитесь, что 'dotenv/config' импортирован в server.ts
       throw new Error(
-        "UPSTASH_REDIS_REST_URL и UPSTASH_REDIS_REST_TOKEN должны быть установлены в .env"
+        "BIZZAR_UPSTASH_REDIS_REST_URL и BIZZAR_UPSTASH_REDIS_REST_TOKEN должны быть установлены в .env"
       );
     }
 
