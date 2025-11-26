@@ -7,7 +7,7 @@
  * "BASE_LIMIT" (801): (SAVE_LIMIT * 2) + 1 (для комбинации 2:1 и компенсации).
  */
 export const CONFIG = {
-  PROJECT_NAME: "BazzarKlineDataFetcher",
+  PROJECT_NAME: "BizzarKlineDataFetcher",
   /**
    * Количество свечей, сохраняемое в кэш.
    */
