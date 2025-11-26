@@ -16,6 +16,8 @@ import { logger } from "./core/utils/logger";
 // —————————————————————————————————————————————
 
 const app = express();
+app.use(cors()); // <--- ИЗМЕНЕНИЕ: Включаем CORS для всех запросов
+app.use(express.json()); // <--- (Рекомендуется) Добавляем парсер JSON
 // Render.com предоставляет порт через process.env.PORT
 const PORT = process.env.PORT || 8000;
 const SECRET_TOKEN = process.env.SECRET_TOKEN;
