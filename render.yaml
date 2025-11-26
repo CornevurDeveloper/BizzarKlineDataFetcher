@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: bizzar-kline-fetcher-server # Имя твоего сервиса
+    name: bazzar-kline-fetcher-server # Имя твоего сервиса
     env: node # ⬅️ ВАЖНО: Указываем, что это Node.js
     plan: free
     region: singapore # ⬅️ Хороший выбор для Европы

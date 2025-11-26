@@ -11,7 +11,7 @@ import {
   TIMEFRAME_MS,
 } from "../core/utils/helpers";
 import { logger } from "../core/utils/logger";
-import { RedisStore } from "../redis-store";
+import { DataStore } from "../store/store";
 import { CONFIG } from "../core/config";
 
 /**
@@ -124,7 +124,7 @@ export async function run4hJob(): Promise<JobResult> {
       data: enriched4h,
     };
 
-    await RedisStore.save("4h", marketData4h);
+    await DataStore.save("4h", marketData4h);
 
     logger.info(
       `[JOB 4h] ✓ Saved 4h: ${enriched4h.length} coins in ${
@@ -135,7 +135,11 @@ export async function run4hJob(): Promise<JobResult> {
 
     const executionTime = Date.now() - startTime;
 
-    logger.info(`[JOB 4h] ✓ Completed in ${executionTime}ms`, DColors.green);
+    // <--- ИЗМЕНЕНИЕ: Добавлен вывод кол-ва сохраненных монет для единообразия
+    logger.info(
+      `[JOB 4h] ✓ Completed in ${executionTime}ms | Saved 4h: ${enriched4h.length} coins`,
+      DColors.green
+    );
 
     return {
       success: true,

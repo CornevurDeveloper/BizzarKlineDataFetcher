@@ -7,6 +7,7 @@
  * "BASE_LIMIT" (801): (SAVE_LIMIT * 2) + 1 (для комбинации 2:1 и компенсации).
  */
 export const CONFIG = {
+  PROJECT_NAME: "BazzarKlineDataFetcher",
   /**
    * Количество свечей, сохраняемое в кэш.
    */
@@ -97,5 +98,15 @@ export const CONFIG = {
      * Используется между: OI → FR → Klines.
      */
     DELAY_BTW_TASKS: 5000,
+  },
+
+  /**
+   * --- STORAGE DRIVER ---
+   * Выбор хранилища для кэша.
+   * "redis": Upstash Redis (персистентный, со сжатием)
+   * "memory": NodeCache (в памяти, без сжатия, сбрасывается при перезапуске)
+   */
+  STORAGE: {
+    DRIVER: "memory" as "redis" | "memory",
   },
 };

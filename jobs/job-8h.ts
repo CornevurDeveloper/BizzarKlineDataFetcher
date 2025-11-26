@@ -12,7 +12,7 @@ import {
   TIMEFRAME_MS,
 } from "../core/utils/helpers";
 import { logger } from "../core/utils/logger";
-import { RedisStore } from "../redis-store";
+import { DataStore } from "../store/store"; // <--- ИЗМЕНЕНИЕ: импорт DataStore
 import { CONFIG } from "../core/config";
 
 /**
@@ -117,7 +117,8 @@ export async function run8hJob(): Promise<JobResult> {
 
     const enriched4h = enrichKlines(kline4hTrimmed, oi1hResult, "4h", frResult);
 
-    await RedisStore.save("4h", {
+    await DataStore.save("4h", {
+      // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
       timeframe: "4h",
       openTime: getCurrentCandleTime(TIMEFRAME_MS["4h"]),
       updatedAt: Date.now(),
@@ -144,7 +145,8 @@ export async function run8hJob(): Promise<JobResult> {
       frResult
     );
 
-    await RedisStore.save("8h", {
+    await DataStore.save("8h", {
+      // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
       timeframe: "8h",
       openTime: getCurrentCandleTime(TIMEFRAME_MS["8h"]),
       updatedAt: Date.now(),
@@ -162,7 +164,7 @@ export async function run8hJob(): Promise<JobResult> {
     const executionTime = Date.now() - startTime;
 
     logger.info(
-      `[JOB 8h] ✓ Completed in ${executionTime}ms | 4h: ${enriched4h.length}, 8h: ${enriched8h.length} coins`,
+      `[JOB 8h] ✓ Completed in ${executionTime}ms | 4h: ${enriched4h.length} coins, 8h: ${enriched8h.length} coins`,
       DColors.green
     );
 

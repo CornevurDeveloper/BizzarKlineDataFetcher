@@ -1,6 +1,6 @@
 import { red, green, yellow, cyan, white, gray, bold } from "colorette";
 import { DColors } from "../types"; // Убедись, что путь к types.ts верный
-
+import { CONFIG } from "../config";
 // Маппинг твоих DColors (которые "color: #...") на функции colorette
 // Мы используем ключи enum (строки), а не их значения
 const colorMap: Record<string, (text: string | number) => string> = {
@@ -13,7 +13,7 @@ const colorMap: Record<string, (text: string | number) => string> = {
 };
 
 class Logger {
-  private projectName = bold("Market-Vibe-Hub"); // Используем bold
+  private projectName = bold(CONFIG.PROJECT_NAME); // Используем bold
 
   private log(
     message: string,

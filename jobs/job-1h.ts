@@ -10,7 +10,7 @@ import {
   TIMEFRAME_MS,
 } from "../core/utils/helpers";
 import { logger } from "../core/utils/logger";
-import { RedisStore } from "../redis-store";
+import { DataStore } from "../store/store"; // <--- ИЗМЕНЕНИЕ: импорт DataStore
 import { CONFIG } from "../core/config";
 
 /**
@@ -59,6 +59,7 @@ export async function run1hJob(): Promise<JobResult> {
         delayMs: 100,
       }
     );
+
     if (kline1hResult.failed.length > 0) {
       errors.push(
         `1h Kline fetch failed for ${kline1hResult.failed.length} coins`
@@ -72,8 +73,9 @@ export async function run1hJob(): Promise<JobResult> {
       "1h" as TF
     );
 
-    // 5. Save ONLY 1h to Redis
-    await RedisStore.save("1h" as TF, {
+    // 5. Save ONLY 1h to DataStore
+    await DataStore.save("1h" as TF, {
+      // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
       timeframe: "1h" as TF,
       openTime: getCurrentCandleTime(TIMEFRAME_MS["1h"]),
       updatedAt: Date.now(),

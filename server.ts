@@ -7,11 +7,9 @@ import { run4hJob } from "./jobs/job-4h";
 import { run8hJob } from "./jobs/job-8h";
 import { run12hJob } from "./jobs/job-12h";
 import { run1dJob } from "./jobs/job-1d";
-import { RedisStore } from "./redis-store";
+import { DataStore } from "./store/store"; // <--- ИЗМЕНЕНИЕ: импорт DataStore
 import { TF, JobResult, DColors, TF_MAP, MarketData } from "./core/types";
 import { logger } from "./core/utils/logger";
-import { AddressInfo } from "net";
-import { CONFIG } from "./core/config";
 
 // —————————————————————————————————————————————
 // 1. КОНФИГУРАЦИЯ
@@ -19,7 +17,7 @@ import { CONFIG } from "./core/config";
 
 const app = express();
 // Render.com предоставляет порт через process.env.PORT
-const PORT = parseInt(process.env.PORT || "8000", 10);
+const PORT = process.env.PORT || 8000;
 const SECRET_TOKEN = process.env.SECRET_TOKEN;
 
 if (!SECRET_TOKEN) {
@@ -27,8 +25,8 @@ if (!SECRET_TOKEN) {
   process.exit(1);
 }
 
-// Инициализируем Redis при старте
-RedisStore.init();
+// Инициализируем выбранное хранилище при старте
+DataStore.init(); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
 
 // Карта для запуска работ по API
 const jobs: Record<string, () => Promise<JobResult>> = {
@@ -67,7 +65,7 @@ app.get("/api/cache/:tf", checkAuth, async (req: Request, res: Response) => {
 
     // 1. Обработка "all" (Happy Path 1)
     if (tf === "all") {
-      const allData = await RedisStore.getAll();
+      const allData = await DataStore.getAll(); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
       return res.status(200).json({ success: true, data: allData });
     }
 
@@ -79,7 +77,7 @@ app.get("/api/cache/:tf", checkAuth, async (req: Request, res: Response) => {
     const timeframe = tf as TF;
 
     // 3. Получаем кэш (Happy Path 2)
-    const cachedData = await RedisStore.get(timeframe);
+    const cachedData = await DataStore.get(timeframe); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
 
     if (cachedData) {
       // Данные есть - отдаём, не проверяя возраст.
@@ -135,7 +133,7 @@ app.get(
       const tf = "1h" as TF;
       const symbolToFind = "BTCUSDT";
 
-      const cache1h = await RedisStore.get(tf);
+      const cache1h = await DataStore.get(tf); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
 
       if (!cache1h || !cache1h.data) {
         return res.status(404).json({
@@ -148,7 +146,7 @@ app.get(
       );
 
       if (!symbolData) {
-        return res.status(4404).json({
+        return res.status(404).json({
           error: `Data for '${symbolToFind}' not found in '${tf}' cache.`,
         });
       }
@@ -171,6 +169,7 @@ app.get(
 );
 
 // --- 404 ---
+// ИСПРАВЛЕНО: Добавлены типы Request и Response
 app.use((req: Request, res: Response) => {
   res.status(404).json({ error: "Not Found" });
 });
@@ -180,54 +179,10 @@ app.use((req: Request, res: Response) => {
 // —————————————————————————————————————————————
 
 const startServer = async () => {
-  try {
-    //const initialLimit = CONFIG.INIT.STARTUP_CANDLES; // <--- ИСПОЛЬЗУЕМ CONFIG
-
-    // 1. Всегда запускаем run1dJob() при старте
-    // logger.info(
-    //   `[SERVER] Запускаю run1dJob() для ИНИЦИАЛИЗАЦИИ кэша. Лимит: ${initialLimit} свечей (для экономии RAM)...`,
-    //   DColors.yellow
-    // );
-
-    // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Мы передаем очень низкий лимит, чтобы избежать OOM ошибки при запуске.
-    // Фактическую работу Cron должен будет запустить позже, используя полный лимит.
-    //await run1dJob(); // <--- Ждем завершения с маленьким лимитом
-
-    logger.info(
-      "[SERVER] ✓ Инициализация кэша завершена. Полная загрузка будет выполнена Cron-задачей.",
-      DColors.green
-    );
-  } catch (error: any) {
-    // 2. Логируем ошибку, но НЕ ПАДАЕМ
-    logger.error(
-      `[SERVER] ❌ Ошибка при инициализации: ${error.message}`,
-      error
-    );
-    logger.info(
-      "[SERVER] Сервер продолжит работу. API будет использовать lazy loading.",
-      DColors.yellow
-    );
-  }
-
   // 3. Запускаем Express-сервер в любом случае
-
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    const address = server.address();
-    let host = "0.0.0.0";
-    let port: string | number = PORT;
-
-    if (
-      address &&
-      typeof address === "object" &&
-      (address as AddressInfo).port
-    ) {
-      const addrInfo = address as AddressInfo;
-      host = addrInfo.address;
-      port = addrInfo.port;
-    }
-
+  app.listen(PORT, () => {
     logger.info(
-      `🚀 [SERVER] Успешно запущен, слушает на http://${host}:${port}`,
+      `🚀 [SERVER] Успешно запущен...`, // <-- Используем реальный хост
       DColors.green
     );
     logger.info(
@@ -243,3 +198,8 @@ const startServer = async () => {
 
 // Запускаем!
 startServer();
+
+// —————————————————————————————————————————————
+// 5. Cron: ЗАПУСК ЗАДАЧ (УДАЛЕНО)
+// —————————————————————————————————————————————
+// (Cron-блок удален)
