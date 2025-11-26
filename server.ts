@@ -2,22 +2,27 @@
 import "dotenv/config";
 
 import express, { Request, Response, NextFunction } from "express";
+// <--- ИЗМЕНЕНИЕ: Удален 'import * as cors'
+
 import { run1hJob } from "./jobs/job-1h";
 import { run4hJob } from "./jobs/job-4h";
 import { run8hJob } from "./jobs/job-8h";
 import { run12hJob } from "./jobs/job-12h";
 import { run1dJob } from "./jobs/job-1d";
-import { DataStore } from "./store/store"; // <--- ИЗМЕНЕНИЕ: импорт DataStore
+import { DataStore } from "./store/store";
 import { TF, JobResult, DColors, TF_MAP, MarketData } from "./core/types";
 import { logger } from "./core/utils/logger";
+
+const cors = require("cors"); // <--- ИЗМЕНЕНИЕ: Используем require для 100% совместимости
 
 // —————————————————————————————————————————————
 // 1. КОНФИГУРАЦИЯ
 // —————————————————————————————————————————————
 
 const app = express();
-app.use(cors()); // <--- ИЗМЕНЕНИЕ: Включаем CORS для всех запросов
+app.use(cors()); // <--- Включаем CORS для всех запросов
 app.use(express.json()); // <--- (Рекомендуется) Добавляем парсер JSON
+
 // Render.com предоставляет порт через process.env.PORT
 const PORT = process.env.PORT || 8000;
 const SECRET_TOKEN = process.env.SECRET_TOKEN;
@@ -28,7 +33,7 @@ if (!SECRET_TOKEN) {
 }
 
 // Инициализируем выбранное хранилище при старте
-DataStore.init(); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
+DataStore.init();
 
 // Карта для запуска работ по API
 const jobs: Record<string, () => Promise<JobResult>> = {
@@ -67,7 +72,7 @@ app.get("/api/cache/:tf", checkAuth, async (req: Request, res: Response) => {
 
     // 1. Обработка "all" (Happy Path 1)
     if (tf === "all") {
-      const allData = await DataStore.getAll(); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
+      const allData = await DataStore.getAll();
       return res.status(200).json({ success: true, data: allData });
     }
 
@@ -79,7 +84,7 @@ app.get("/api/cache/:tf", checkAuth, async (req: Request, res: Response) => {
     const timeframe = tf as TF;
 
     // 3. Получаем кэш (Happy Path 2)
-    const cachedData = await DataStore.get(timeframe); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
+    const cachedData = await DataStore.get(timeframe);
 
     if (cachedData) {
       // Данные есть - отдаём, не проверяя возраст.
@@ -135,10 +140,10 @@ app.get(
       const tf = "1h" as TF;
       const symbolToFind = "BTCUSDT";
 
-      const cache1h = await DataStore.get(tf); // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
+      const cache1h = await DataStore.get(tf);
 
       if (!cache1h || !cache1h.data) {
-        return res.status(404).json({
+        return res.status(444).json({
           error: `Cache for timeframe '${tf}' is empty or invalid.`,
         });
       }
