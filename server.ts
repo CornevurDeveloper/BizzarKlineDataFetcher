@@ -65,78 +65,35 @@ app.get("/api/cache/:tf", checkAuth, async (req: Request, res: Response) => {
   try {
     const { tf } = req.params;
 
-    // Обработка "all"
+    // 1. Обработка "all" (Happy Path 1)
     if (tf === "all") {
       const allData = await RedisStore.getAll();
       return res.status(200).json({ success: true, data: allData });
     }
 
-    // Проверка валидности таймфрейма
+    // 2. Проверка валидности таймфрейма
     if (!TF_MAP[tf]) {
       return res.status(400).json({ error: `Invalid timeframe: ${tf}` });
     }
 
     const timeframe = tf as TF;
+
+    // 3. Получаем кэш (Happy Path 2)
     const cachedData = await RedisStore.get(timeframe);
 
     if (cachedData) {
-      // Проверяем свежесть данных (макс 2 часа)
-      // Убедимся, что timestamp существует, прежде чем его читать
-      const timestamp = (cachedData as any)?.timestamp;
-      if (timestamp) {
-        const age = Date.now() - timestamp;
-        const maxAge = 2 * 60 * 60 * 1000; // 2 часа
-
-        if (age < maxAge) {
-          // Данные свежие - отдаём
-          return res.status(200).json({
-            success: true,
-            data: cachedData,
-            cached: true,
-            age: Math.round(age / 60000) + " minutes",
-          });
-        }
-        logger.info(
-          `[API] Cache for ${timeframe} is stale (age: ${Math.round(
-            age / 60000
-          )} min), regenerating...`,
-          DColors.yellow
-        );
-      } else {
-        logger.warn(
-          `[API] Cache for ${timeframe} found, but missing 'timestamp'. Regenerating...`,
-          DColors.yellow
-        );
-      }
-    }
-
-    // Кэша нет или устарел - генерируем ПРЯМО СЕЙЧАС
-    logger.info(
-      `[API] Cache miss for ${timeframe}, running job synchronously...`,
-      DColors.cyan
-    );
-
-    const jobFn = jobs[timeframe];
-    if (!jobFn) {
-      return res.status(500).json({
-        error: `Job for timeframe ${timeframe} not found`,
+      // Данные есть - отдаём, не проверяя возраст.
+      return res.status(200).json({
+        success: true,
+        data: cachedData,
+        cached: true,
       });
     }
 
-    await jobFn(); // Блокирующий вызов job
-    const freshData = await RedisStore.get(timeframe);
-
-    if (!freshData) {
-      return res.status(500).json({
-        error: `Failed to generate cache for ${timeframe}`,
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: freshData,
-      cached: false,
-      generated: true,
+    // 4. Кэша нет (Empty Data Path)
+    // (Весь "медленный путь" с регенерацией удален)
+    return res.status(404).json({
+      error: `No cache found for timeframe: ${timeframe}`,
     });
   } catch (e: any) {
     const errorMsg = e instanceof Error ? e.message : String(e);
