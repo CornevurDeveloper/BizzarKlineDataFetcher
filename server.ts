@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 // ВАЖНО: Загружает .env переменные в process.env
 import "dotenv/config";
 
@@ -61,7 +62,7 @@ const checkAuth = (req: Request, res: Response, next: NextFunction) => {
 // —————————————————————————————————————————————
 
 // --- ЭНДПОИНТ 0: Health Check (БЕЗ АВТОРИЗАЦИИ) ---
-app.get("/health", (req: Request, res: Response) => {
+app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok" });
 });
 
@@ -135,7 +136,7 @@ app.post("/api/jobs/run/:jobName", checkAuth, (req: Request, res: Response) => {
 app.get(
   "/api/1h-btc-candle",
   checkAuth,
-  async (req: Request, res: Response) => {
+  async (_req: Request, res: Response) => {
     try {
       const tf = "1h" as TF;
       const symbolToFind = "BTCUSDT";
@@ -177,7 +178,7 @@ app.get(
 
 // --- 404 ---
 // ИСПРАВЛЕНО: Добавлены типы Request и Response
-app.use((req: Request, res: Response) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: "Not Found" });
 });
 
@@ -185,7 +186,7 @@ app.use((req: Request, res: Response) => {
 // 4. ЗАПУСК СЕРВЕРА
 // —————————————————————————————————————————————
 
-const startServer = async () => {
+const startServer = () => {
   // 3. Запускаем Express-сервер в любом случае
   app.listen(PORT, () => {
     logger.info(

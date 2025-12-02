@@ -321,6 +321,7 @@ export async function fetchKlines(
     return {
       symbol: item.symbol,
       exchanges: originalCoin?.exchanges || [],
+      category: originalCoin?.category || 0,
       candles: item.data.map((d: any) => ({
         openTime: d.openTime,
         openPrice: d.openPrice,

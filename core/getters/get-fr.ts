@@ -362,6 +362,7 @@ export async function fetchFundingRate(
   const successful: CoinMarketData[] = successfulRaw.map((item) => ({
     symbol: item.symbol,
     exchanges: item.exchanges || [],
+    category: item.category || 0,
     candles: item.processedData.map((d: any) => ({
       openTime: d.openTime,
       fundingRate: d.fundingRate,

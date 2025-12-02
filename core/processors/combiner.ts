@@ -110,6 +110,7 @@ export function combineCoinResults(
   return results.map((coinResult) => ({
     symbol: coinResult.symbol,
     exchanges: coinResult.exchanges,
+    category: coinResult.category,
     candles: combineCandles(coinResult.symbol, coinResult.candles),
   }));
 }

@@ -43,6 +43,7 @@ export type FetchOptions = {
 export type Coin = {
   symbol: string;
   exchanges: string[];
+  category: number;
 };
 
 // Группы монет по биржам
@@ -93,7 +94,8 @@ export interface Candle {
  */
 export interface CoinMarketData {
   symbol: string;
-  exchanges: string[]; // Список бирж, где торгуется (из Coin Sifter)
+  exchanges: string[];
+  category: number;
   candles: Candle[];
 }
 

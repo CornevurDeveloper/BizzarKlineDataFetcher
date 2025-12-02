@@ -204,6 +204,7 @@ export async function fetchBybitOI(
     return {
       symbol: item.symbol,
       exchanges: originalCoin?.exchanges || [],
+      category: originalCoin?.category || 0,
       candles: item.processedData.map((d: any) => ({
         openTime: d.openTime,
         openInterest: d.openInterest,

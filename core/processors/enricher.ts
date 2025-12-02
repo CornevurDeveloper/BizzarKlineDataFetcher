@@ -99,6 +99,7 @@ export function enrichKlines(
     return {
       symbol: coinResult.symbol,
       exchanges: coinResult.exchanges,
+      category: coinResult.category,
       candles,
     };
   });
@@ -117,6 +118,7 @@ export function trimCandles(
   return results.map((coinResult) => ({
     symbol: coinResult.symbol,
     exchanges: coinResult.exchanges,
+    category: coinResult.category,
     candles: coinResult.candles.slice(-limit), // Берём последние limit свечей
   }));
 }

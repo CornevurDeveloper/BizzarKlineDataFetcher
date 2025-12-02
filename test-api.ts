@@ -133,6 +133,36 @@ async function runApiTest() {
         DColors.green
       );
 
+      // 🚀 =============================================================
+      // 🚀 ИЗМЕНЕНИЕ: Добавлена "Проверка 2.5"
+      // 🚀 =============================================================
+      // ✅ Проверка 2.5: Структура CoinMarketData (symbol, exchanges, category)
+      const hasSymbol =
+        typeof coin.symbol === "string" && coin.symbol.length > 0;
+      const hasExchanges = Array.isArray(coin.exchanges);
+      const hasCategory = typeof coin.category === "number";
+
+      if (hasSymbol && hasExchanges && hasCategory) {
+        logger.info(
+          `  ✓ Структура Монеты: OK (Symbol, Exchanges, Category)`,
+          DColors.green
+        );
+      } else {
+        logger.error(`  ✗ Структура Монеты: ПРОВАЛЕНА`);
+        if (!hasSymbol)
+          logger.error(`    -> 'symbol' отсутствует или не строка`);
+        if (!hasExchanges)
+          logger.error(`    -> 'exchanges' отсутствует или не массив`);
+        if (!hasCategory)
+          logger.error(`    -> 'category' отсутствует или не число`);
+        failed++;
+        console.log("-------------------------------------------------");
+        continue;
+      }
+      // 🚀 =============================================================
+      // 🚀 КОНЕЦ ИЗМЕНЕНИЯ
+      // 🚀 =============================================================
+
       // ✅ Проверка 3: Свежесть
       const lastCandle = coin.candles[coin.candles.length - 1];
       const timeframeMs = TIMEFRAME_MS[tf];
@@ -156,20 +186,20 @@ async function runApiTest() {
       if (isFresh) {
         logger.info(`  ✓ Свежесть: OK. Актуальная свеча.`, DColors.green);
         logger.info(
-          `     -> Ожидалось (минимум): ${formatAsUTC(expectedMinOpenTime)}`,
+          `    -> Ожидалось (минимум): ${formatAsUTC(expectedMinOpenTime)}`,
           DColors.cyan
         );
         logger.info(
-          `     -> Найдено в кэше:     ${formatAsUTC(lastCandle.openTime)}`,
+          `    -> Найдено в кэше:     ${formatAsUTC(lastCandle.openTime)}`,
           DColors.cyan
         );
       } else {
         logger.error(`  ✗ Устарело: старая свеча!`);
         logger.error(
-          `     -> Ожидалось (минимум): ${formatAsUTC(expectedMinOpenTime)}`
+          `    -> Ожидалось (минимум): ${formatAsUTC(expectedMinOpenTime)}`
         );
         logger.error(
-          `     -> Найдено в кэше:     ${formatAsUTC(lastCandle.openTime)}`
+          `    -> Найдено в кэше:     ${formatAsUTC(lastCandle.openTime)}`
         );
         failed++;
         console.log("-------------------------------------------------");
@@ -225,7 +255,7 @@ async function runApiTest() {
 
       passed++;
     } catch (e: any) {
-      logger.error(`  ✗ ОШИБКА: ${e.message}`);
+      logger.error(`  ✗ ОШИКА: ${e.message}`);
       failed++;
     }
 
