@@ -1,6 +1,5 @@
 // @ts-ignore-file
 import fetch from "node-fetch";
-
 import { bybitPerpUrl } from "../utils/urls/bybit/bybit-perps-url";
 import { binancePerpsUrl } from "../utils/urls/binance/binance-perps-url";
 import {
@@ -12,8 +11,8 @@ import {
   FailedCoinResult,
 } from "../types";
 import { logger } from "../utils/logger";
-import { sleep } from "../utils/helpers"; // <--- ДОБАВЛЕНО
-import { CONFIG } from "../config"; // <--- ДОБАВЛЕНО
+import { sleep } from "../utils/helpers";
+import { CONFIG } from "../config"; // <--- Глобальный конфиг
 
 const BYBIT_INTERVALS: Record<TF, string> = {
   "1h": "60",
@@ -29,14 +28,11 @@ const BINANCE_INTERVALS: Record<TF, string> = {
   "12h": "12h",
   D: "1d",
 };
+
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
 ];
-// УДАЛЕНА ЛОКАЛЬНАЯ ФУНКЦИЯ delay
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function isAlignedToTimeframe(timestamp: number, targetInterval: TF): boolean {
   const date = new Date(timestamp);
@@ -94,22 +90,17 @@ function resampleKlines(
 async function fetchBinanceKlineData(
   symbol: string,
   timeframe: TF,
-  limit: number,
-  delayMs: number
+  limit: number
 ): Promise<any> {
-  // delayMs больше не используется
-  // if (delayMs > 0) await delay(delayMs);
   const interval = BINANCE_INTERVALS[timeframe];
   const url = binancePerpsUrl(symbol, interval, limit);
   const randomUserAgent =
     USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
   const response = await fetch(url, {
     headers: {
       "User-Agent": randomUserAgent,
       Accept: "application/json",
-      "Accept-Language": "en-US,en;q=0.9",
-      Referer: "https://www.binance.com",
-      Origin: "https://www.binance.com",
     },
   });
   if (!response.ok)
@@ -118,9 +109,11 @@ async function fetchBinanceKlineData(
   const rawData: any = await response.json();
   if (!Array.isArray(rawData))
     throw new Error(`Invalid Binance response for ${symbol}`);
+
   const klines = rawData.sort(
     (a: any, b: any) => parseInt(a[0]) - parseInt(b[0])
   );
+
   let processedData = klines.map((entry: any) => {
     const totalQuoteVolume = parseFloat(entry[7]);
     const takerBuyQuote = parseFloat(entry[10]);
@@ -138,6 +131,7 @@ async function fetchBinanceKlineData(
       closeTime: parseInt(entry[6]),
     };
   });
+
   if (processedData.length > 2) {
     processedData = processedData.slice(0, -1);
   }
@@ -148,44 +142,40 @@ async function fetchBinanceKlineData(
 async function fetchBybitKlineData(
   symbol: string,
   timeframe: TF,
-  limit: number,
-  delayMs: number
+  limit: number
 ): Promise<any> {
-  // delayMs больше не используется
-  // if (delayMs > 0) await delay(delayMs);
   const bybitInterval = BYBIT_INTERVALS[timeframe];
   const fetchLimit =
     timeframe === "8h" || timeframe === "D" ? Math.ceil(limit * 2.2) : limit;
   const url = bybitPerpUrl(symbol, bybitInterval, fetchLimit);
   const randomUserAgent =
     USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
   const response = await fetch(url, {
     headers: {
       "User-Agent": randomUserAgent,
       Accept: "application/json",
-      "Accept-Language": "en-US,en;q=0.9",
-      Referer: "https://www.bybit.com",
-      Origin: "https://www.bybit.com",
     },
   });
   if (!response.ok)
     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+
   const rawData: any = await response.json();
   if (!rawData?.result?.list)
     throw new Error(`Invalid Bybit response for ${symbol}`);
 
   let klines = rawData.result.list;
   if (klines.length === 0) throw new Error(`No data for ${symbol}`);
+
   klines = [...klines].sort(
     (a: any, b: any) => parseInt(a[0]) - parseInt(b[0])
   );
 
-  // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
   if (timeframe === "8h") klines = resampleKlines(klines, "4h", "8h");
   else if (timeframe === "D") klines = resampleKlines(klines, "12h", "D");
-  // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
   if (klines.length === 0) throw new Error(`No aligned candles for ${symbol}`);
+
   let processedData = klines.map((entry: any) => ({
     openTime: parseInt(entry[0]),
     openPrice: parseFloat(entry[1]),
@@ -196,6 +186,7 @@ async function fetchBybitKlineData(
     volumeDelta: 0,
     closeTime: parseInt(entry[6]),
   }));
+
   if (processedData.length > 2) {
     processedData = processedData.slice(0, -1);
   }
@@ -207,80 +198,56 @@ async function fetchKlineData(
   symbol: string,
   exchange: "binance" | "bybit",
   timeframe: TF,
-  limit: number,
-  delayMs: number
+  limit: number
 ): Promise<any> {
   try {
     let data: any[] = [];
     if (exchange === "binance") {
-      // delayMs не передаем, т.к. задержка управляется в fetchInBatches
-      data = await fetchBinanceKlineData(symbol, timeframe, limit, 0);
+      data = await fetchBinanceKlineData(symbol, timeframe, limit);
     } else {
-      data = await fetchBybitKlineData(symbol, timeframe, limit, 0);
+      data = await fetchBybitKlineData(symbol, timeframe, limit);
     }
 
-    if (data.length > 0) {
-      const last = data[data.length - 1];
-      const date =
-        new Date(last.openTime + 3 * 3600 * 1000)
-          .toISOString()
-          .replace("T", " ")
-          .substring(0, 19) + " MSK";
-      // logger.info(
-      //   `${symbol} [${exchange.toUpperCase()} ${timeframe}] → ${
-      //     data.length
-      //   } candles | Last: ${date} | Close: ${last.closePrice}`,
-      //   DColors.green
-      // );
-    }
-
-    return {
-      success: true,
-      symbol,
-      data,
-    };
+    return { success: true, symbol, data };
   } catch (error: any) {
-    // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
     logger.error(
-      `${symbol} [${exchange}] error: ${error.message}`,
-      error // Передаем сам объект 'error'
+      `${symbol} [${exchange.toUpperCase()} KLINE] error: ${error.message}`,
+      error
     );
-    // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
-    return {
-      success: false,
-      symbol,
-      error: error.message.replace(/[<>'"]/g, ""),
-    };
+    return { success: false, symbol, error: error.message };
   }
 }
 
+/**
+ * Внутренняя функция батчей теперь СТРОГО использует CONFIG
+ * + принимает label для логов
+ */
 async function fetchInBatches<T>(
   items: T[],
-  batchSize: number,
+  label: string,
   processor: (item: T) => Promise<any>
 ): Promise<any[]> {
   const results: any[] = [];
-  const DELAY_BETWEEN_BATCHES = CONFIG.THROTTLING.DELAY_MS; // <--- ИСПОЛЬЗУЕМ CONFIG
-  const effectiveBatchSize = CONFIG.THROTTLING.BATCH_SIZE; // <--- ИСПОЛЬЗУЕМ CONFIG
 
-  for (let i = 0; i < items.length; i += effectiveBatchSize) {
-    const batch = items.slice(i, i + effectiveBatchSize);
+  // Приоритет CONFIG
+  const batchSize = CONFIG.THROTTLING.BATCH_SIZE;
+  const delayMs = CONFIG.THROTTLING.DELAY_MS;
 
-    // 1. Выполняем запросы в батче ПАРАЛЛЕЛЬНО (Promise.all)
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+
     const batchResults = await Promise.all(batch.map(processor));
     results.push(...batchResults);
 
-    // 2. Логируем прогресс
     logger.info(
-      `Progress: ${Math.min(i + effectiveBatchSize, items.length)}/${
+      `[${label}] Progress: ${Math.min(i + batchSize, items.length)}/${
         items.length
-      } (Batch: ${effectiveBatchSize})`,
+      } (Batch: ${batchSize})`,
       DColors.cyan
     );
 
-    // 3. 🛑 ГЛАВНОЕ ИСПРАВЛЕНИЕ: Ждем 400ms между батчами
-    if (i + effectiveBatchSize < items.length) {
-      await sleep(DELAY_BETWEEN_BATCHES);
+    if (i + batchSize < items.length) {
+      await sleep(delayMs);
     }
   }
 
@@ -292,26 +259,19 @@ export async function fetchKlines(
   exchange: "binance" | "bybit",
   timeframe: TF,
   limit: number,
-  options?: {
-    batchSize?: number;
-    delayMs?: number;
-  }
+  _options?: any // Игнорируем опции
 ): Promise<FetcherResult> {
-  const batchSize = options?.batchSize || CONFIG.THROTTLING.BATCH_SIZE; // <--- ИСПОЛЬЗУЕМ CONFIG
+  const label = `${exchange.toUpperCase()} KLINE`;
 
   logger.info(
-    `Fetching ${exchange.toUpperCase()} Klines for ${
-      coins.length
-    } coins [${timeframe}] | БАТЧ: ${
-      CONFIG.THROTTLING.BATCH_SIZE
-    } | ЗАДЕРЖКА: ${CONFIG.THROTTLING.DELAY_MS}ms между батчами`,
+    `[${label}] Fetching for ${coins.length} coins [${timeframe}] | Config: Batch=${CONFIG.THROTTLING.BATCH_SIZE}, Delay=${CONFIG.THROTTLING.DELAY_MS}ms`,
     DColors.cyan
   );
-  const results = await fetchInBatches(
-    coins,
-    batchSize,
-    (coin) => fetchKlineData(coin.symbol, exchange, timeframe, limit, 0) // Передаем 0 в fetchKlineData
+
+  const results = await fetchInBatches(coins, label, (coin) =>
+    fetchKlineData(coin.symbol, exchange, timeframe, limit)
   );
+
   const successfulRaw = results.filter((r) => r.success);
   const failedRaw = results.filter((r) => !r.success);
 
@@ -338,9 +298,11 @@ export async function fetchKlines(
     symbol: item.symbol,
     error: item.error,
   }));
+
   logger.info(
-    `✓ Success: ${successful.length} | ✗ Failed: ${failed.length}`,
+    `[${label}] ✓ Success: ${successful.length} | ✗ Failed: ${failed.length}`,
     successful.length > 0 ? DColors.green : DColors.yellow
   );
+
   return { successful, failed };
 }

@@ -17,17 +17,6 @@ import { CONFIG } from "../core/config";
 
 /**
  * Cron Job для 1D таймфрейма
- *
- * Алгоритм (Упрощенный, на основе реального кода):
- * 1. Fetch 1h OI data (CONFIG.OI.h1_GLOBAL)
- * 2. Wait
- * 3. Fetch 1h Kline data (CONFIG.KLINE.h1)
- * 4. Enrich and save 1h + OI
- * 5. Wait
- * 6. Fetch 12h Kline data (CONFIG.KLINE.h12_BASE) → BASE SET for 12h/1D
- * 7. Process:
- * - 12h (last 400 from 12h BASE) + OI → save to 12h (no FR!)
- * - 1D (combined from 12h BASE 800) + OI → save to 1D (no FR!)
  */
 export async function run1dJob(): Promise<JobResult> {
   const startTime = Date.now();
@@ -41,15 +30,11 @@ export async function run1dJob(): Promise<JobResult> {
     // 1. Split coins by exchange
     const coinGroups = splitCoinsByExchange(coins);
 
-    // 2. Fetch OI 1h (720 candles)
+    // 2. Fetch OI 1h (CONFIG controls throttling)
     const oi1hResult = await fetchOI(
       coinGroups,
       "1h" as TF,
-      CONFIG.OI.h1_GLOBAL,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.OI.h1_GLOBAL
     );
     if (oi1hResult.failed.length > 0) {
       errors.push(`OI fetch failed for ${oi1hResult.failed.length} coins`);
@@ -59,15 +44,12 @@ export async function run1dJob(): Promise<JobResult> {
     await new Promise((resolve) =>
       setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
     );
-    // 3. Fetch Klines 1h (400 candles)
+
+    // 3. Fetch Klines 1h
     const kline1hResult = await fetchKlineData(
       coinGroups,
       "1h" as TF,
-      CONFIG.KLINE.h1,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.KLINE.h1
     );
 
     if (kline1hResult.failed.length > 0) {
@@ -101,15 +83,12 @@ export async function run1dJob(): Promise<JobResult> {
     await new Promise((resolve) =>
       setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
     );
-    // 6. Fetch Klines 12h (801 candles) → BASE SET for 12h/1D
+
+    // 6. Fetch Klines 12h (BASE SET for 12h/1D)
     const kline12hBaseResult = await fetchKlineData(
       coinGroups,
       "12h" as TF,
-      CONFIG.KLINE.h12_BASE,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.KLINE.h12_BASE
     );
     if (kline12hBaseResult.failed.length > 0) {
       errors.push(
@@ -136,6 +115,7 @@ export async function run1dJob(): Promise<JobResult> {
       `[JOB 1d] ✓Saved 12h: ${enriched12h.length} coins`,
       DColors.green
     );
+
     // 12. 1D (combined from 12h BASE 800) + OI → save (NO FR!)
     const kline1dCombined = combineCoinResults(kline12hBaseResult.successful);
     const enriched1d = enrichKlines(kline1dCombined, oi1hResult, "D" as TF);

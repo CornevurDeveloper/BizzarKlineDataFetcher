@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { fetchBinanceOI } from "../getters/get-binance-oi";
 import { fetchBybitOI } from "../getters/get-bybit-oi";
-import { CoinGroups, TF, FetchOptions, FetcherResult, DColors } from "../types";
+import { CoinGroups, TF, FetcherResult, DColors } from "../types";
 import { logger } from "../utils/logger";
 
 /**
@@ -11,8 +11,7 @@ import { logger } from "../utils/logger";
 export async function fetchOI(
   coinGroups: CoinGroups,
   timeframe: TF,
-  limit: number,
-  options?: FetchOptions
+  limit: number
 ): Promise<FetcherResult> {
   const { binanceCoins, bybitCoins } = coinGroups;
   logger.info(
@@ -23,12 +22,12 @@ export async function fetchOI(
 
   // Binance OI
   if (binanceCoins.length > 0) {
-    tasks.push(fetchBinanceOI(binanceCoins, timeframe, limit, options));
+    tasks.push(fetchBinanceOI(binanceCoins, timeframe, limit));
   }
 
   // Bybit OI
   if (bybitCoins.length > 0) {
-    tasks.push(fetchBybitOI(bybitCoins, timeframe, limit, options));
+    tasks.push(fetchBybitOI(bybitCoins, timeframe, limit));
   }
 
   const results = await Promise.all(tasks);
@@ -42,18 +41,14 @@ export async function fetchOI(
     allFailed.push(...res.failed);
   }
 
-  // --- ИСПРАВЛЕНИЕ РЕФАКТОРИНГА ---
-  // allSuccessful.map(...) больше не нужен,
-  // так как allSuccessful уже содержит CoinMarketData[]
   const failed = allFailed.map((item) => ({
     symbol: item.symbol,
     error: item.error,
   }));
-  // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
   logger.info(
     `[OI Fetcher] ✓ Success: ${allSuccessful.length} | ✗ Failed: ${failed.length}`,
     allSuccessful.length > 0 ? DColors.green : DColors.yellow
   );
-  return { successful: allSuccessful, failed }; // <- ИСПРАВЛЕНО
+  return { successful: allSuccessful, failed };
 }

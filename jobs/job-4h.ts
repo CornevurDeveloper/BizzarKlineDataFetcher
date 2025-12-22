@@ -16,14 +16,6 @@ import { CONFIG } from "../core/config";
 
 /**
  * Cron Job для 4h таймфрейма
- *
- * Алгоритм:
- * 1. Fetch 1h OI data
- * 2. Wait 3s
- * 3. Fetch FR data
- * 4. Wait 3s
- * 5. Fetch 4h Kline data
- * 6. Enrich and save 4h + OI + FR
  */
 export async function run4hJob(): Promise<JobResult> {
   const startTime = Date.now();
@@ -41,10 +33,7 @@ export async function run4hJob(): Promise<JobResult> {
     let stepTime = Date.now();
 
     // Fetch OI 1h
-    const oi1hResult = await fetchOI(coinGroups, "1h", CONFIG.OI.h1_GLOBAL, {
-      batchSize: 10,
-      delayMs: 200,
-    });
+    const oi1hResult = await fetchOI(coinGroups, "1h", CONFIG.OI.h1_GLOBAL);
 
     if (oi1hResult.failed.length > 0) {
       errors.push(`OI fetch failed for ${oi1hResult.failed.length} coins`);
@@ -63,10 +52,7 @@ export async function run4hJob(): Promise<JobResult> {
     stepTime = Date.now();
 
     // Fetch FR data
-    const frResult = await fetchFR(coinGroups, CONFIG.FR.h4_RECENT, {
-      batchSize: 10,
-      delayMs: 200,
-    });
+    const frResult = await fetchFR(coinGroups, CONFIG.FR.h4_RECENT);
 
     if (frResult.failed.length > 0) {
       errors.push(`FR fetch failed for ${frResult.failed.length} coins`);
@@ -88,11 +74,7 @@ export async function run4hJob(): Promise<JobResult> {
     const kline4hResult = await fetchKlineData(
       coinGroups,
       "4h",
-      CONFIG.KLINE.h4_DIRECT,
-      {
-        batchSize: 10,
-        delayMs: 200,
-      }
+      CONFIG.KLINE.h4_DIRECT
     );
 
     if (kline4hResult.failed.length > 0) {
@@ -135,7 +117,6 @@ export async function run4hJob(): Promise<JobResult> {
 
     const executionTime = Date.now() - startTime;
 
-    // <--- ИЗМЕНЕНИЕ: Добавлен вывод кол-ва сохраненных монет для единообразия
     logger.info(
       `[JOB 4h] ✓ Completed in ${executionTime}ms | Saved 4h: ${enriched4h.length} coins`,
       DColors.green

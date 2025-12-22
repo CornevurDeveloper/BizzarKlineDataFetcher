@@ -17,15 +17,6 @@ import { CONFIG } from "../core/config";
 
 /**
  * Cron Job для 12h таймфрейма
- *
- * Алгоритм (Упрощенный, на основе реального кода):
- * 1. Fetch 1h OI data (CONFIG.OI.h1_GLOBAL)
- * 2. Wait
- * 3. Fetch 1h Kline data (CONFIG.KLINE.h1)
- * 4. Enrich and save 1h + OI
- * 5. Wait
- * 6. Fetch 12h Kline data (CONFIG.KLINE.h12_DIRECT)
- * 7. Enrich and save 12h + OI (no FR!)
  */
 export async function run12hJob(): Promise<JobResult> {
   const startTime = Date.now();
@@ -39,15 +30,11 @@ export async function run12hJob(): Promise<JobResult> {
     // 1. Split coins by exchange
     const coinGroups = splitCoinsByExchange(coins);
 
-    // 2. Fetch OI 1h (720 candles)
+    // 2. Fetch OI 1h
     const oi1hResult = await fetchOI(
       coinGroups,
       "1h" as TF,
-      CONFIG.OI.h1_GLOBAL,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.OI.h1_GLOBAL
     );
     if (oi1hResult.failed.length > 0) {
       errors.push(`OI fetch failed for ${oi1hResult.failed.length} coins`);
@@ -57,15 +44,12 @@ export async function run12hJob(): Promise<JobResult> {
     await new Promise((resolve) =>
       setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
     );
-    // 3. Fetch Klines 1h (400 candles)
+
+    // 3. Fetch Klines 1h
     const kline1hResult = await fetchKlineData(
       coinGroups,
       "1h" as TF,
-      CONFIG.KLINE.h1,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.KLINE.h1
     );
 
     if (kline1hResult.failed.length > 0) {
@@ -99,15 +83,12 @@ export async function run12hJob(): Promise<JobResult> {
     await new Promise((resolve) =>
       setTimeout(resolve, CONFIG.DELAYS.DELAY_BTW_TASKS)
     );
-    // 6. Fetch Klines 12h (401 candles) → Прямой запрос (ОПТИМИЗАЦИЯ)
+
+    // 6. Fetch Klines 12h (DIRECT request)
     const kline12hDirectResult = await fetchKlineData(
       coinGroups,
       "12h" as TF,
-      CONFIG.KLINE.h12_DIRECT,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.KLINE.h12_DIRECT
     );
 
     if (kline12hDirectResult.failed.length > 0) {
@@ -134,7 +115,7 @@ export async function run12hJob(): Promise<JobResult> {
       `[JOB 12h] ✓Saved 12h: ${enriched12h.length} coins`,
       DColors.green
     );
-    const executionTime = Date.now() - startTime; // <--- ИЗМЕНЕНИЕ: переменная `executionTime` объявлена здесь
+    const executionTime = Date.now() - startTime;
 
     logger.info(
       `[JOB 12h] ✓ Completed in ${executionTime}ms | Saved 1h: ${enriched1h.length}, 12h: ${enriched12h.length} coins`,

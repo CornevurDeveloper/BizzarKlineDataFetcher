@@ -2,18 +2,16 @@
 // @ts-ignore-file
 
 import { fetchFundingRate } from "../getters/get-fr";
-import { CoinGroups, FetchOptions, FetcherResult, DColors } from "../types";
+import { CoinGroups, FetcherResult, DColors } from "../types";
 import { logger } from "../utils/logger";
 
 /**
  * Универсальный fetcher для Funding Rate
  * Автоматически разделяет монеты по биржам и делает параллельные запросы
- * FR уже нормализован к 8h intervals внутри get-funding-rate.ts
  */
 export async function fetchFR(
   coinGroups: CoinGroups,
-  limit: number,
-  options?: FetchOptions
+  limit: number
 ): Promise<FetcherResult> {
   const { binanceCoins, bybitCoins } = coinGroups;
   logger.info(
@@ -24,12 +22,12 @@ export async function fetchFR(
 
   // Binance FR
   if (binanceCoins.length > 0) {
-    tasks.push(fetchFundingRate(binanceCoins, "binance", limit, options));
+    tasks.push(fetchFundingRate(binanceCoins, "binance", limit));
   }
 
-  // Bybit FR (будет нормализован к 8h)
+  // Bybit FR
   if (bybitCoins.length > 0) {
-    tasks.push(fetchFundingRate(bybitCoins, "bybit", limit, options));
+    tasks.push(fetchFundingRate(bybitCoins, "bybit", limit));
   }
 
   const results = await Promise.all(tasks);
@@ -43,19 +41,15 @@ export async function fetchFR(
     allFailed.push(...res.failed);
   }
 
-  // --- ИСПРАВЛЕНИЕ РЕФАКТОРИНГА ---
-  // allSuccessful.map(...) больше не нужен,
-  // так как allSuccessful уже содержит CoinMarketData[]
   const failed = allFailed.map((item) => ({
     symbol: item.symbol,
     error: item.error,
   }));
-  // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
   logger.info(
     `[FR Fetcher] ✓ Success: ${allSuccessful.length} | ✗ Failed: ${failed.length}`,
     allSuccessful.length > 0 ? DColors.green : DColors.yellow
   );
 
-  return { successful: allSuccessful, failed } as FetcherResult; // <- ИСПРАВЛЕНО
+  return { successful: allSuccessful, failed } as FetcherResult;
 }

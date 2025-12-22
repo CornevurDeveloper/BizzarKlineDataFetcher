@@ -10,18 +10,11 @@ import {
   TIMEFRAME_MS,
 } from "../core/utils/helpers";
 import { logger } from "../core/utils/logger";
-import { DataStore } from "../store/store"; // <--- ИЗМЕНЕНИЕ: импорт DataStore
+import { DataStore } from "../store/store";
 import { CONFIG } from "../core/config";
 
 /**
  * Cron Job для 1h таймфрейма
- * Запускается каждый час (кроме 0, 4, 8, 12, 20)
- *
- * Алгоритм:
- * 1. Fetch 1h OI data (CONFIG.OI.h1_GLOBAL)
- * 2. Fetch 1h Kline data (CONFIG.KLINE.h1)
- * 3. Enrich and save:
- * - 1h + OI → save to 1h
  */
 export async function run1hJob(): Promise<JobResult> {
   const startTime = Date.now();
@@ -35,29 +28,21 @@ export async function run1hJob(): Promise<JobResult> {
     // 1. Split coins by exchange
     const coinGroups = splitCoinsByExchange(coins);
 
-    // 2. Fetch OI 1h (720 candles)
+    // 2. Fetch OI 1h
     const oi1hResult = await fetchOI(
       coinGroups,
       "1h" as TF,
-      CONFIG.OI.h1_GLOBAL,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.OI.h1_GLOBAL
     );
     if (oi1hResult.failed.length > 0) {
       errors.push(`OI fetch failed for ${oi1hResult.failed.length} coins`);
     }
 
-    // 3. Fetch Klines 1h (400 candles)
+    // 3. Fetch Klines 1h
     const kline1hResult = await fetchKlineData(
       coinGroups,
       "1h" as TF,
-      CONFIG.KLINE.h1,
-      {
-        batchSize: 50,
-        delayMs: 100,
-      }
+      CONFIG.KLINE.h1
     );
 
     if (kline1hResult.failed.length > 0) {
@@ -75,7 +60,6 @@ export async function run1hJob(): Promise<JobResult> {
 
     // 5. Save ONLY 1h to DataStore
     await DataStore.save("1h" as TF, {
-      // <--- ИЗМЕНЕНИЕ: RedisStore -> DataStore
       timeframe: "1h" as TF,
       openTime: getCurrentCandleTime(TIMEFRAME_MS["1h"]),
       updatedAt: Date.now(),

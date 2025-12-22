@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { fetchKlines } from "../getters/get-kline";
-import { CoinGroups, TF, FetchOptions, FetcherResult, DColors } from "../types";
+import { CoinGroups, TF, FetcherResult, DColors } from "../types";
 import { logger } from "../utils/logger";
 
 /**
@@ -10,8 +10,7 @@ import { logger } from "../utils/logger";
 export async function fetchKlineData(
   coinGroups: CoinGroups,
   timeframe: TF,
-  limit: number,
-  options?: FetchOptions
+  limit: number
 ): Promise<FetcherResult> {
   const { binanceCoins, bybitCoins } = coinGroups;
   logger.info(
@@ -22,12 +21,12 @@ export async function fetchKlineData(
 
   // Binance Klines
   if (binanceCoins.length > 0) {
-    tasks.push(fetchKlines(binanceCoins, "binance", timeframe, limit, options));
+    tasks.push(fetchKlines(binanceCoins, "binance", timeframe, limit));
   }
 
   // Bybit Klines
   if (bybitCoins.length > 0) {
-    tasks.push(fetchKlines(bybitCoins, "bybit", timeframe, limit, options));
+    tasks.push(fetchKlines(bybitCoins, "bybit", timeframe, limit));
   }
 
   const results = await Promise.all(tasks);
@@ -41,18 +40,14 @@ export async function fetchKlineData(
     allFailed.push(...res.failed);
   }
 
-  // --- ИСПРАВЛЕНИЕ РЕФАКТОРИНГА ---
-  // allSuccessful.map(...) больше не нужен,
-  // так как allSuccessful уже содержит CoinMarketData[]
   const failed = allFailed.map((item) => ({
     symbol: item.symbol,
     error: item.error,
   }));
-  // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
   logger.info(
     `[Kline Fetcher] ✓ Success: ${allSuccessful.length} | ✗ Failed: ${failed.length}`,
     allSuccessful.length > 0 ? DColors.green : DColors.yellow
   );
-  return { successful: allSuccessful, failed }; // <- ИСПРАВЛЕНО
+  return { successful: allSuccessful, failed };
 }
