@@ -7,14 +7,14 @@ export function sleep(ms: number): Promise<void> {
  * Разделяет монеты по биржам
  */
 export function splitCoinsByExchange(coins: Coin[]): CoinGroups {
-  const binanceCoins = coins.filter((coin) =>
-    coin.exchanges?.some((ex) => ex.toLowerCase() === "binance")
+  const binanceCoins = coins.filter(
+    (coin) =>
+      coin.exchanges?.some((ex) => ex.toLowerCase() === "binance") &&
+      !coin.exchanges?.some((ex) => ex.toLowerCase() === "bybit"),
   );
 
-  const bybitCoins = coins.filter(
-    (coin) =>
-      coin.exchanges?.some((ex) => ex.toLowerCase() === "bybit") &&
-      !coin.exchanges?.some((ex) => ex.toLowerCase() === "binance")
+  const bybitCoins = coins.filter((coin) =>
+    coin.exchanges?.some((ex) => ex.toLowerCase() === "bybit"),
   );
 
   return { binanceCoins, bybitCoins };
