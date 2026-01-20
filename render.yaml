@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: bazzar-kline-data-fetcher # Имя твоего сервиса
+    name: bizzar-kline-data-fetcher # Имя твоего сервиса
     env: node # ⬅️ ВАЖНО: Указываем, что это Node.js
     plan: free
-    region: singapore # ⬅️ Хороший выбор для Европы
+    region: frankfurt # ⬅️ Хороший выбор для Европы
 
     # Команды из нашего package.json
     buildCommand: "npm install && npm run build"
