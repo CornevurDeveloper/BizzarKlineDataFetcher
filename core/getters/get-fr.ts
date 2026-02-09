@@ -13,6 +13,7 @@ import { binanceFrUrl } from "../utils/urls/binance/binance-fr-url";
 import { bybitFrUrl } from "../utils/urls/bybit/bybit-fr-url";
 import { sleep } from "../utils/helpers";
 import { CONFIG } from "../config"; // <--- Глобальный конфиг
+import { binanceQueue, bybitQueue } from "../utils/smart-queue";
 
 // Константы таймфреймов в миллисекундах
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -210,37 +211,7 @@ async function fetchBybitFundingRate(coin: Coin, limit: number): Promise<any> {
  * Внутренняя функция батчей теперь СТРОГО использует CONFIG
  * + принимает label для логов
  */
-async function fetchInBatches<T>(
-  items: T[],
-  label: string,
-  processor: (item: T) => Promise<any>
-): Promise<any[]> {
-  const results: any[] = [];
 
-  // Приоритет CONFIG
-  const batchSize = CONFIG.THROTTLING.BATCH_SIZE;
-  const delayMs = CONFIG.THROTTLING.DELAY_MS;
-
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-
-    const batchResults = await Promise.all(batch.map(processor));
-    results.push(...batchResults);
-
-    logger.info(
-      `[${label}] Прогресс: ${Math.min(i + batchSize, items.length)}/${
-        items.length
-      } (Batch: ${batchSize})`,
-      DColors.cyan
-    );
-
-    if (i + batchSize < items.length) {
-      await sleep(delayMs);
-    }
-  }
-
-  return results;
-}
 
 function fetchFundingRateData(
   coin: Coin,
@@ -263,13 +234,19 @@ export async function fetchFundingRate(
   const label = `${exchange.toUpperCase()} FR`;
 
   logger.info(
-    `[${label}] Запуск по CONFIG: Батч ${CONFIG.THROTTLING.BATCH_SIZE}, Задержка ${CONFIG.THROTTLING.DELAY_MS}ms`,
+    `[${label}] Добавление ${coins.length} задач в глобальные очереди...`,
     DColors.cyan
   );
 
-  const results = await fetchInBatches(coins, label, (coin) =>
-    fetchFundingRateData(coin, exchange, limit)
-  );
+  const tasks = coins.map((coin) => {
+    if (exchange === "binance") {
+      return binanceQueue.add(() => fetchFundingRateData(coin, exchange, limit));
+    } else {
+      return bybitQueue.add(() => fetchFundingRateData(coin, exchange, limit));
+    }
+  });
+
+  const results = await Promise.all(tasks);
 
   const successfulRaw = results.filter((r) => r.success);
   const failedRaw = results.filter((r) => !r.success);

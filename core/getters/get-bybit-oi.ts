@@ -13,6 +13,7 @@ import { logger } from "../utils/logger";
 import { bybitOiUrl } from "../utils/urls/bybit/bybit-oi-url";
 import { sleep } from "../utils/helpers";
 import { CONFIG } from "../config"; // <--- Глобальный конфиг
+import { bybitQueue } from "../utils/smart-queue";
 
 const INTERVALS: Record<TF, number> = {
   "1h": 60 * 60 * 1000,
@@ -142,41 +143,7 @@ async function fetchCoinOI(
   }
 }
 
-/**
- * Внутренняя функция батчей теперь СТРОГО использует CONFIG
- */
-async function fetchInBatches<T>(
-  items: T[],
-  processor: (item: T) => Promise<any>
-): Promise<any[]> {
-  const results: any[] = [];
 
-  // Игнорируем внешние параметры, берем ТОЛЬКО из глобального конфига
-  const batchSize = CONFIG.THROTTLING.BATCH_SIZE;
-  const delayMs = CONFIG.THROTTLING.DELAY_MS;
-
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-
-    // Выполняем запросы текущего батча ПАРАЛЛЕЛЬНО
-    const batchResults = await Promise.all(batch.map(processor));
-    results.push(...batchResults);
-
-    logger.info(
-      `[BYBIT OI] Прогресс: ${Math.min(i + batchSize, items.length)}/${
-        items.length
-      } (Batch: ${batchSize})`,
-      DColors.cyan
-    );
-
-    // СТРОГАЯ ЗАДЕРЖКА между батчами одной биржи
-    if (i + batchSize < items.length) {
-      await sleep(delayMs);
-    }
-  }
-
-  return results;
-}
 
 export async function fetchBybitOI(
   coins: Coin[],
@@ -185,13 +152,15 @@ export async function fetchBybitOI(
   _options?: any // Параметры из Job игнорируются ради приоритета CONFIG
 ): Promise<FetcherResult> {
   logger.info(
-    `[BYBIT OI] Запуск по CONFIG: Батч ${CONFIG.THROTTLING.BATCH_SIZE}, Задержка ${CONFIG.THROTTLING.DELAY_MS}ms`,
+    `[BYBIT OI] Добавление ${coins.length} задач в глобальную очередь...`,
     DColors.yellow
   );
 
-  const results = await fetchInBatches(coins, (coin) =>
-    fetchCoinOI(coin.symbol, timeframe, limit)
+  const tasks = coins.map((coin) =>
+    bybitQueue.add(() => fetchCoinOI(coin.symbol, timeframe, limit))
   );
+
+  const results = await Promise.all(tasks);
 
   const successfulRaw = results.filter((r) => r.success);
   const failedRaw = results.filter((r) => !r.success);

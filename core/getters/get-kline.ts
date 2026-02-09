@@ -13,6 +13,7 @@ import {
 import { logger } from "../utils/logger";
 import { sleep } from "../utils/helpers";
 import { CONFIG } from "../config"; // <--- Глобальный конфиг
+import { binanceQueue, bybitQueue } from "../utils/smart-queue";
 
 const BYBIT_INTERVALS: Record<TF, string> = {
   "1h": "60",
@@ -222,37 +223,7 @@ async function fetchKlineData(
  * Внутренняя функция батчей теперь СТРОГО использует CONFIG
  * + принимает label для логов
  */
-async function fetchInBatches<T>(
-  items: T[],
-  label: string,
-  processor: (item: T) => Promise<any>
-): Promise<any[]> {
-  const results: any[] = [];
 
-  // Приоритет CONFIG
-  const batchSize = CONFIG.THROTTLING.BATCH_SIZE;
-  const delayMs = CONFIG.THROTTLING.DELAY_MS;
-
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-
-    const batchResults = await Promise.all(batch.map(processor));
-    results.push(...batchResults);
-
-    logger.info(
-      `[${label}] Progress: ${Math.min(i + batchSize, items.length)}/${
-        items.length
-      } (Batch: ${batchSize})`,
-      DColors.cyan
-    );
-
-    if (i + batchSize < items.length) {
-      await sleep(delayMs);
-    }
-  }
-
-  return results;
-}
 
 export async function fetchKlines(
   coins: Coin[],
@@ -264,13 +235,19 @@ export async function fetchKlines(
   const label = `${exchange.toUpperCase()} KLINE`;
 
   logger.info(
-    `[${label}] Fetching for ${coins.length} coins [${timeframe}] | Config: Batch=${CONFIG.THROTTLING.BATCH_SIZE}, Delay=${CONFIG.THROTTLING.DELAY_MS}ms`,
+    `[${label}] Adding ${coins.length} tasks to global queues...`,
     DColors.cyan
   );
 
-  const results = await fetchInBatches(coins, label, (coin) =>
-    fetchKlineData(coin.symbol, exchange, timeframe, limit)
-  );
+  const tasks = coins.map((coin) => {
+    if (exchange === "binance") {
+      return binanceQueue.add(() => fetchKlineData(coin.symbol, exchange, timeframe, limit));
+    } else {
+      return bybitQueue.add(() => fetchKlineData(coin.symbol, exchange, timeframe, limit));
+    }
+  });
+
+  const results = await Promise.all(tasks);
 
   const successfulRaw = results.filter((r) => r.success);
   const failedRaw = results.filter((r) => !r.success);
