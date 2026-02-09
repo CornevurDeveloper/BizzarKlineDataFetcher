@@ -3,7 +3,7 @@ services:
     name: bizzar-kline-data-fetcher # Имя твоего сервиса
     env: node # ⬅️ ВАЖНО: Указываем, что это Node.js
     plan: free
-    region: frankfurt # ⬅️ Хороший выбор для Европы
+    region: singapore # ⬅️ Singapore (Best for Binance/Bybit latency)
 
     # Команды из нашего package.json
     buildCommand: "npm install && npm run build"
