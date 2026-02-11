@@ -86,7 +86,8 @@ export const CONFIG = {
      */
     DELAY: {
       /**
-       * Binance: 700ms (Вес ~2040/мин. Лимит 2400).
+       * Binance: 1500ms (Ultra-Safe Mode).
+       * ~80 req/min * 5 weight = 400 weight/min (Limit 2400).
        */
       BINANCE: 700,
 

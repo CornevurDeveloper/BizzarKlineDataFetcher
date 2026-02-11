@@ -11,7 +11,7 @@ import {
   FailedCoinResult,
 } from "../types";
 import { logger } from "../utils/logger";
-import { sleep } from "../utils/helpers";
+import { sleep, TIMEFRAME_MS } from "../utils/helpers";
 import { CONFIG } from "../config"; // <--- Глобальный конфиг
 import { binanceQueue, bybitQueue } from "../utils/smart-queue";
 
@@ -177,15 +177,19 @@ async function fetchBybitKlineData(
 
   if (klines.length === 0) throw new Error(`No aligned candles for ${symbol}`);
 
+  // Get timeframe in ms for closeTime calculation
+  const timeframeMs = TIMEFRAME_MS[timeframe];
+
   let processedData = klines.map((entry: any) => ({
     openTime: parseInt(entry[0]),
     openPrice: parseFloat(entry[1]),
     highPrice: parseFloat(entry[2]),
     lowPrice: parseFloat(entry[3]),
     closePrice: parseFloat(entry[4]),
-    volume: parseFloat(entry[7]),
+    volume: parseFloat(entry[6]), // Index 6 is Turnover (Quote Volume/USDT)
     volumeDelta: 0,
-    closeTime: parseInt(entry[6]),
+    // Calculate closeTime: start + interval - 1ms
+    closeTime: parseInt(entry[0]) + timeframeMs - 1,
   }));
 
   if (processedData.length > 2) {
